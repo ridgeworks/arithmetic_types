@@ -1,2 +1,358 @@
-# arithmetic_types
-Extend SWIP arithmetic with user defined types
+#### Introduction
+Prolog has provided functional arithmetic since the very early days, and support for user defined functions was often provided via predicates which had the result as the last argument. When SWI_Prolog introduced optimized arithmetic, this capability was dropped, but a partial solution was provided using `library(arithmetic)`:
+```
+/** <module> Extensible arithmetic
+
+This module provides a  portable   partial  replacement  of SWI-Prolog's
+user-defined  arithmetic  (evaluable)   functions.    It   defines   the
+compatibility  directive  arithmetic_function/1  and  support  for  both
+runtime and compile-time evaluation of expressions   that  are a mixture
+between Prolog predicates  used  as   functions  and  built-in evaluable
+terms.
+*/
+```
+This is accomplished using goal/term expansion that moves any user defined functions into separate calls and connects the results back into the original expression via shared variables. This expansion is done when the module containing the expression is loaded, so dynamic evaluation of expressions with user defined functions was lost.
+
+The other restriction of the existing functional arithmetic is that user defined functions are restricted to numeric arguments and return values. In many situations, functional notation is more expressive and improves readability compared to a conjunction of goals, which is largely why Prolog has used it for arithmetic for some time. But it would be useful if the same capability was extended to other types to support the creation of mini functional DSL's. Combining this with arithmetic evaluation supports mixed type expressions which include numbers. A few examples:
+```
+?- Ch = "D", Lower is "abcdefghijklmnopqrstuvwxyz"[Ch-"A"].  % convert `Ch` to lower case
+Ch = "D",
+Lower = d.
+
+?- N = 1, D = 2, Q is [sign(N)*inf, N/D][D=\=0].  % list items are lazily evaluated
+N = 1,
+D = 2,
+Q = 0.5.
+
+?- N = 1, D = 0, Q is [sign(N)*inf, N/D][D=\=0].  % flag(float_overflow_)=infinity
+N = 1,
+D = 0,
+Q = 1.0Inf.
+
+?- A2 is ndarray([[4,7],[2,6]]), I2 is inverse(A2).  % flag(prefer_rationals)=true
+A2 = #(#(4, 7), #(2, 6)),
+I2 = #(#(3r5, -7r10), #(-1r5, 2r5)).
+```
+The `arithmetic_types` module included in this pack is an extension of `library(arithmetic)`. It enables list and atomic literals as function arguments, as well as user defined types (compound terms). 
+
+It uses the same `exports` list and core semantics as `arithmetic` (it was derived from a clone), but it performs term and goal expansion before `arithmetic` (context `user` before `system`). One difference is that any user defined functions (using directive `arithmetic_function/1`) will be globally defined, but the underlying (predicate) implementation need not be exported. (This is just like builtin functions on numbers, e.g., there is no exported predicate `max/3`.) 
+
+Also included in this pack are a few "type modules" described below. These are meant to act as examples but feel free to use or extend them as you see fit.
+
+#### `type_bool`
+In actual usage, it seems to make sense to package groups of functions according to their type. So, for example, a `type_bool` module would define some functions with boolean argument values, e.g., `and`, `or`, and `not`, along with functions that produce boolean values, e.g., comparisons. The interface to such a module might look like:
+```
+:- module(type_bool,
+	[
+	 bool/1,
+	 op(200, fy,  not),     % boolean 'not'
+	 op(500, yfx, and),     % boolean 'and'
+	 op(500, yfx, or)       % boolean 'or'
+	]).
+
+:- current_module(arithmetic_types) -> true ; use_module(library(arithmetic_types)).
+
+:- arithmetic_function(and/2).        % boolean and
+:- arithmetic_function(or/2).         % boolean or
+:- arithmetic_function(not/1).        % boolean not
+:- arithmetic_function(== /2).        % atomic equivalence
+:- arithmetic_function(\== /2).       % atomic non-equivalence
+:- arithmetic_function(< /2).         % atomic less than
+:- arithmetic_function(=< /2).        % atomic less than or equal
+:- arithmetic_function(>= /2).        % atomic greater than or equal
+:- arithmetic_function(> /2).         % atomic greater than
+:- arithmetic_function(between/3).    % atomic between
+```
+Note that the exports list is quite small, just a test predicate for `bool` values and a few operators for convenience. The real "exports" is the list of global functions that can now be used in arithmetic expressions. Here's a subset of the implementation of the interface:
+```
+%
+% type bool, 0 or 1 (representing false or true)
+%
+bool(B) :- integer(B),  (B=0 ; B=1), !.
+
+%
+% Function: logical operators
+%
+and(B1,B2,R) :- bool(B1), bool(B2), R is B1*B2.
+
+or(B1,B2,R)  :- bool(B1), bool(B2), R is max(B1,B2).
+
+not(B,R)     :- bool(B), R is (B+1) mod 2.
+```
+The atomic comparison functions compare atomic values, i.e., atoms, strings, numbers, etc. If the two arguments are numbers they are compared by value (unlike term comparison on numbers). For details see the source code (<prolog/type_bool.pl>).
+
+Now there's nothing very new here, in fact this could have been done with `library(arithmetic)` if comparisons were limited to numbers. Moving on, let's see what can be done with Prolog lists. 
+
+#### `type_list`
+Lists are used to represent arbitrarily long sequences of terms. So  things that one might want to do with lists is index and slice them (like Python), return the length of a list, or generate a new list, e.g., from a range of numbers. In addition, we'll assume that a list evaluates to itself (identity function) if it's used as a function argument.
+
+The interface for a `type_list` module might look like:
+```
+:- module(type_list,
+	[
+	op(100, yf,  []),    % support block notation
+	op(500, yfx, \\),    % for appending (pseudo SQL ||)
+	sub_list/5,          % sub_atom/5 analogy for lists
+	slice_parameters/4,  % slice support for blocks
+	index_parameters/3   % index support for blocks
+	]).
+	
+:- current_module(arithmetic_types) -> true ; use_module(library(arithmetic_types)).
+
+:- arithmetic_function(new/2).        % create
+:- arithmetic_function('[|]'/2).      % identity function for list items
+:- arithmetic_function([]/1).         % block index
+:- arithmetic_function([]/2).
+:- arithmetic_function(: /2).         % slice (used with block indexing)
+:- arithmetic_function(len/1).        % size or length
+:- arithmetic_function(init/2).       % fill any vars
+:- arithmetic_function(\\ /2).        % list concat
+:- arithmetic_function(arange/2).     % list from range(0,N)
+:- arithmetic_function(arange/3).     % list from range(B,E)
+:- arithmetic_function(arange/4).     % list from range(B,E,Step)
+````
+There already is a filter for type testing (`is_list`), so we don't need one of those; just a couple of operators for block notation and append (`\\`), and some generic support for indexing and slicing that could be used by other sequence types, e.g., strings. A subset of the defined functions:
+```
+%
+% Function: evaluate list items
+% 
+'[|]'(X,Xs,[X|Xs]).        % lazy evaluation
+
+%
+% Function: create new list
+%
+new(list,Size,L) :- integer(Size), Size >= 0, (nonvar(L) -> is_list(L) ; true), !,
+	length(L,Size).
+
+new(list,Xs,Xs) :- is_list(Xs).
+
+%
+% Function: generic slice expression - pass through until used
+%
+':'(B,E,B:E). 
+
+%
+% Function: indexing and slicing
+%
+[](L, L) :- is_list(L).
+[]([I1,I2|IN],T,X) :-  !,      % multi-level index, works on any supported indexing type
+	T1 is T[I1],               % index one level and recurse
+	X is T1[I2|IN].
+[]([B:E],L,X) :- is_list(L),  
+	length(L,Len),
+	slice_parameters(B:E,Len,SB,SL), !,
+	sub_list(L,SB,SL,_,X).
+[]([Ix], L, R) :- is_list(L), 
+	length(L,Len),
+	index_parameters(Ix,Len,I),
+	% the following uses near constant time arg for lists exceeding some threshold
+	(I =< 28 -> skip_N(I,L,[X|_]) ; (T=..[$|L], arg(I,T,X))),
+	item_eval(X,R).  % evaluate selected item
+```
+A few indexing and slicing examples:
+```
+?- T is [a,b,c][0].
+T = a.
+
+?- T is [a,b,c][-1].
+T = c.
+
+?- L is [a,b,c][1:2].
+L = [b].
+
+?- L is [a,b,c][0:2].
+L = [a, b].
+
+?- L is [a,b,c][1:E].
+L = [b, c],
+E = 3.
+
+?- L is [a,b,c][1:1].
+L =  ([]).
+
+?- L is [a,b,c][1:0].
+false.
+
+?- N is [a,2+3,c][1].
+N = 5.
+```
+Things to note:
+- indicies are integers starting with `0` (first element); negative indicies are relative to the end of the list (like Python)
+- slices are defined by a `B:E` term where `B` and `E` are indices. If `B` is a variable it is unified with 0; variable `E` is unified with the length of the list. 
+- the result of indexing a list is a term which is then evaluated; if that fails, the result is the term itself. 
+- the result of slicing a list is always another list.
+
+Using `list` and `bool` functions, conditional expressions can be constructed as in the earlier examples (zero divide check). Or piecewise functions, e,g, the ramp function:
+```
+?- X = -1, H is [0,X][(X>=0)].
+X = -1,
+H = 0.
+
+?- X =  2, H is [0,X][(X>=0)].
+X = H, H = 2.
+```
+An expression converting upper case characters to lower case:
+```
+?- C='D', LowC is [C,"abcdefghijklmnopqrstuvwxyz"[[C]-['A']]][between('A','Z',C)].
+C = 'D',
+LowC = d.
+
+?- C='3', LowC is [C,"abcdefghijklmnopqrstuvwxyz"[[C]-['A']]][between('A','Z',C)].
+C = LowC, LowC = '3'.
+```
+Index notation can also be used on the right hand side of `is/2`:
+```
+?- length(L,2), L[0] is [2+3][0], L[1] is L[0]+1.
+L = [5, 6].
+
+?- length(L,2), L[_:_] is [a,b,c,d][1:3].
+L = [b, c].
+```
+This works when the result of evaluating the right hand side of `is/2` unifies with the result of evaluating the expression. In these examples `L` is a list of variables so the unification succeeds. However, the arithmetic comparison predicates only support numeric values so, in general, these don't work with other types (either fail or generate errors). The atomic comparison functions supported in `type_bool` can sometimes be used as a workaround:
+```
+?- 1 is (2<3).
+true.
+
+?- 1 is (a>'A').
+true.
+
+?- 0 is ("abc">"abd").
+true.
+```
+Module `type_list` supports a few other functions; see the source for details. Many of predicates in `library(lists)`, e.g., `reverse/2`, `flatten/2`, `max_member/2`, `min_member/2`, `sum_list/2`, etc., could  be easily added as functions.
+
+#### `type_stringy`
+SWI-Prolog `string`'s are another example of a sequence type, so it seems advantageous to use the same index and slice functions on strings. Furthermore, `string`'s and `atom`'s can almost be treated as equivalent from the perspective of functions applied to them. So here's the interface supported by `type_stringy`:
+```
+:- module(type_stringy,[stringy/1]).
+
+:- current_module(arithmetic_types) -> true ; use_module(library(arithmetic_types)).
+% uses operators and slice/indexing support from type_list
+:- (current_module(type_list) -> true ; use_module(library(type_list))).
+
+:- arithmetic_function(string/1).         % term to string conversion
+:- arithmetic_function([]/1).             % indexing (char) and slicing (substring)
+:- arithmetic_function([]/2).
+:- arithmetic_function(\\ /2).            % concat
+:- arithmetic_function(string_length/1).  % "builtin", no code required
+:- arithmetic_function(find/2).           % find a substring (like Python)
+```
+Note that the list of functions include the same index, slice, and concatenation function definitions that `type_list` defined. But the function implementations will be different since they're operating on different types. Since the implementations are private to the module this won't be a problem, but the they must ensure that they only succeed for arguments of their type and fail otherwise, so other implementations can be attempted. That's why `type_list` specifically tested that the indexed argument was a list.
+
+The implementation of `type_stringy`:
+```
+%
+% most string functions work equally well on atoms
+%
+stringy(T) :- (string(T) ; atom(T)), !.
+
+%
+% Function: string conversion
+%
+string(Term,S)   :- 
+	(string(Term) -> S=Term ; term_string(Term,S)).  % string function is idempotent
+
+%
+% Function: string indexing and slicing
+%
+[](St, St) :- stringy(St).
+[]([B:E],St,X) :- stringy(St),
+	string_length(St,Len),  % St is a string
+	slice_parameters(B:E,Len,SB,SL), !,
+	sub_string(St, SB, SL, _, X).            % slicing evaluates to a string
+[]([Ix],St,X) :- stringy(St),
+	string_length(St,Len),
+	index_parameters(Ix,Len,I),
+	sub_string(St, I, 1, _, SS), !,
+	string_chars(SS,[X]).                    % indexing evaluates to a char
+
+%
+% Function: string concat (\\)
+%
+\\(S1,S2,R) :- stringy(S1), stringy(S2),     % arguments must be stringy
+	string_concat(S1,S2,R), !.	             % deterministic concat
+
+%
+% Function: find - returns position of substring in string (like Python)
+%
+find(Sub,S,R) :- stringy(Sub), stringy(S),   % arguments must be stringy
+	(sub_string(S,R,_,_,Sub)
+	 -> true
+	 ; R= -1  % not found value
+	).	            
+```
+Note that exported predicates `index_parameters/3` and `slice_parameters/4` from `type_list` are used, so slicing and indexing semantics will be equivalent. Similarly, both `type_list` and `type_stringy` will define a module specific `\\ /3` predciate for concatenation. 
+
+#### `type_ndarray`
+Polymorphic functions, those which have different implementations depending on argument type, can be very useful. Another example is the `ndarray` type, also included in this pack, which provides a subset of Python's `ndarray` class (see <numpy.org>). See the source for details, but a few examples:
+```
+?- A is ndarray([[1,2,3],[4,5,6]]).
+A = #(#(1, 2, 3), #(4, 5, 6)).
+
+?- A is new(ndarray,[3,3]), A[0,1] is 42, X is A[0:1][0][0:3-1][1].
+A = #(#(_11938, 42, _11942), #(_11916, _11918, _11920), #(_11894, _11896, _11898)),
+X = 42.
+
+?- T is transpose(ndarray([[[1, 2], [5, 6]], [[3, 4], [7, 8]]])).
+T = #(#(#(1, 2), #(3, 4)), #(#(5, 6), #(7, 8))).
+
+?- S is sum(ndarray([1,2,3])).
+S = 6.
+
+?- CrossProd is cross(ndarray([1,2]),ndarray([4,5])).
+CrossProd = -3.
+
+% Product of a 3x3 matrix and its inverse is the 3x3 identity matrix
+?- A is ndarray([[3,0,2],[2,0,-2],[0,1,1]]), I is inverse(A), X is dot(A,I).
+A = #(#(3, 0, 2), #(2, 0, -2), #(0, 1, 1)),
+I = #(#(1r5, 1r5, 0), #(-1r5, 3r10, 1), #(1r5, -3r10, 0)),
+X = #(#(1, 0, 0), #(0, 1, 0), #(0, 0, 1)).
+```
+
+#### Caveats
+Over a number of major releases, SWI-Prolog arithmetic has acquired a few "idiosyncrasies"; legal literal terms which are not numbers syntactically. These include atoms representing 0 arity functions (e.g.,`e, pi, inf`) , lists of length 1 (e.g., `[a], [97]`), strings of length 1 (e.g., "a"), and dictionary support (e.g., `dict.key`). To maintain strict backwards compatibility, these will continue to have the builtin arithmetic semantics:
+```
+?- X is [a,b,c,d,e][-1], Y is [a,b,c,d,e][0].
+X = 2.718281828459045,
+Y = a.
+
+?- X is [a], Y is [a,b].
+X = 97,
+Y = [a, b].
+
+?- X is "a", Y is "ab".
+X = 97,
+Y = "ab".
+```
+A flag to control the tradeoff between consistency and backwards compatibility is under consideration.
+
+As with `library(arithmetic)`, goal expansion is done at load time and does not support dynamically created functions, e.g., `X0 = [1,2,3][0], Y = is X0+1.` In such cases, explicit calls to `arithmetic_expression_value/2` is required:
+```
+?- X0 = [1,2,3][0], Y is X0+1.
+ERROR: Type error: `[]' expected, found `[1,2,3]' (a list) ("x" must hold one character)
+ERROR: In:
+ERROR:   [11] _1296 is [](...,...)+1
+
+?- X0 = [1,2,3][0], arithmetic_expression_value(X0+1,Y).  
+X0 = [1, 2, 3][0],
+Y = 2.
+```
+
+#### `arithmetic` or `arithmetic_types`
+Module `arithmetic_types` provides the functionality of `library(arithmetic)` but it must be explicitly loaded. If the latter has already been loaded (or autoloaded), loading `arithmetic_types` will result in an error message:
+```
+ERROR: import/1: No permission to import arithmetic_types:arithmetic_expression_value/2 into user (already imported from arithmetic)
+```
+This generally doesn't cause any problems but calls to `arithmetic_expression_value/2` may have to be qualified, depending on which module "owns" the user function definition. If `arithmetic_types` is used, a good strategy is to load it first (i.e., before `library(arithmetic)`).
+
+#### Getting Started
+
+Module `arithmetic_types` and the type modules described above are available as a downloadable pack:
+```
+?- pack_install(arithmetic_types, [url('https://github.com/ridgeworks/arithmetic_types.git')]).
+	
+?- use_module(library(arithmetic_types)).
+true.
+```
+Once the pack has been installed, any of the provided type modules can be imported via `use_module`.
+
