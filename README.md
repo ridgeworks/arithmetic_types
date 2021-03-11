@@ -318,7 +318,7 @@ A = #(#(3, 0, 2), #(2, 0, -2), #(0, 1, 1)),
 I = #(#(1r5, 1r5, 0), #(-1r5, 3r10, 1), #(1r5, -3r10, 0)),
 X = #(#(1, 0, 0), #(0, 1, 0), #(0, 0, 1)).
 ```
-A somewhat more compelling example is to use `ndarray` to solve a system of linear equations.If the equation system is expressed in the matrix form **`A`**`• x = b`, the entire solution set can also be expressed in matrix form. If the matrix **`A`** is square (has m rows and n=m columns) and has full rank (all m rows are independent), then the system has a unique solution given by `x = `**`A`**<sup>`-1`</sup>`•b`.
+A somewhat more compelling example is to use `ndarray` to solve a system of linear equations.If the equation system is expressed in the matrix form **`A`**`• x = b`, the entire solution set can also be expressed in matrix form. If the matrix **`A`** is square (has m rows and n=m columns) and has full rank (all m rows are independent), then the system has a unique solution given by `x = `**`A`**<sup>`-1`</sup>`• b`.
 
 For the set of equations:
 ```
