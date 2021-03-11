@@ -24,7 +24,7 @@ N = 1,
 D = 2,
 Q = 0.5.
 
-?- N = 1, D = 0, Q is [sign(N)*inf, N/D][D=\=0].  % flag(float_overflow_)=infinity
+?- N = 1, D = 0, Q is [sign(N)*inf, N/D][D=\=0].  % flag(float_overflow)=infinity
 N = 1,
 D = 0,
 Q = 1.0Inf.
