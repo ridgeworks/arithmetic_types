@@ -35,12 +35,22 @@ I2 = #(#(3r5, -7r10), #(-1r5, 2r5)).
 ```
 The `arithmetic_types` module included in this pack is an extension of `library(arithmetic)`. It enables list and atomic literals as function arguments, as well as user defined types (compound terms). 
 
-It uses the same `exports` list and core semantics as `arithmetic` (it was derived from a clone), but it performs term and goal expansion before `arithmetic` (context `user` before `system`). One difference is that any user defined functions (using directive `arithmetic_function/1`) will be globally defined, but the underlying (predicate) implementation need not be exported. (This is just like builtin functions on numbers, e.g., there is no exported predicate `max/3`.) 
+Extending the set of types available for use in arithmetic expressions raises the possibility of supporting polymorphic functions. These are functions with a common functor symbol and arity but whose semantics depends on the actual input arguments. For example, the same function template used for indexing or concatenating strings could be used for performing the same "function" for any sequence type, e.g., lists or arrays. (This is a familiar concept in object oriented languages where the same method signature is used in many classes; each class provides its own implementation (or inherits one from its superclass).)
+
+There are a couple of options for implementing polymorphic functions in Prolog. Perhaps an obvious one is to them as multiple clauses in a single predicate. If such a predicate was `multifile`, then each "type module" (a module implementing a set of functions for a user defined type), could implement a clause implementing the semantics for that type. This creates a dependency between the types, e.g., an inadvertent cut in one implementation could remove the option of success in another. And all implementations would have to agree on a module context "owning" the function in question.
+
+An alternative model, and the one adapted in this design, is to treat each implementation as private, i.e., there need not be a user "callable" predicate interface to a function. Rather, each type module "registers" its implementation of a (polymorphic) function using the `arithmetic_function/1` directive. This way each type module can be totally independent from a perspective of defining functions; no multifile requirement or common context to define. Once a function is registered, it is globally available for use in arithmetic evaluation. At the same time there is nothing restricting a user from defining a common callable predicate as described in the previous paragraph. Indeed it's fairly simple to define a function using a pre-existing predicate, e.g., `string_length/2` that fits the requirement of a "function predicate" (last argument is the result).
+
+This second model is analogous to how OOP languages provide polymorphism, i.e., each class:method  is an independent implementation; it's just that the method is selected by the class, i.e., type, of the object involved. Prolog has no such concept, so the argument type checking must be performed by the function. If the checking fails, the function must fail to permit an alternative implementation a chance at success. The flip side is that functions are deterministic; once it succeeds, backtracking has no effect.
+
+The second model is also similar to arithmetic functions builtin to Prolog, i.e., they are globally available and not directly callable, e.g., there is no exported `max/3` predicate.
+
+Module `arithmetic_types` supports the same `exports` list and core semantics as `arithmetic` (it was derived from a clone), but it performs term and goal expansion before `arithmetic` (context `user` before `system`).
 
 Also included in this pack are a few "type modules" described below. These are meant to act as examples but feel free to use or extend them as you see fit.
 
 #### `type_bool`
-In actual usage, it seems to make sense to package groups of functions according to their type. So, for example, a `type_bool` module would define some functions with boolean argument values, e.g., `and`, `or`, and `not`, along with functions that produce boolean values, e.g., comparisons. The interface to such a module might look like:
+As described above, it is recommended  to package groups of functions according to their type. So, for example, a `type_bool` module would define some functions with boolean argument values, e.g., `and`, `or`, and `not`, along with functions that produce boolean values, e.g., comparisons. The interface to such a module might look like:
 ```
 :- module(type_bool,
 	[
@@ -284,7 +294,7 @@ find(Sub,S,R) :- stringy(Sub), stringy(S),   % arguments must be stringy
 Note that exported predicates `index_parameters/3` and `slice_parameters/4` from `type_list` are used, so slicing and indexing semantics will be equivalent. Similarly, both `type_list` and `type_stringy` will define a module specific `\\ /3` predciate for concatenation. 
 
 #### `type_ndarray`
-Polymorphic functions, those which have different implementations depending on argument type, can be very useful. Another example is the `ndarray` type, also included in this pack, which provides a subset of Python's `ndarray` class (see <numpy.org>). See the source for details, but a few examples:
+Polymorphic functions, those which have different implementations depending on argument type, can be very useful. Another example of a sequence type is `ndarray`, also included in this pack, which provides a subset of Python's `ndarray` class (see <numpy.org>). See the source for details, but a few examples:
 ```
 ?- A is ndarray([[1,2,3],[4,5,6]]).
 A = #(#(1, 2, 3), #(4, 5, 6)).
@@ -307,6 +317,29 @@ CrossProd = -3.
 A = #(#(3, 0, 2), #(2, 0, -2), #(0, 1, 1)),
 I = #(#(1r5, 1r5, 0), #(-1r5, 3r10, 1), #(1r5, -3r10, 0)),
 X = #(#(1, 0, 0), #(0, 1, 0), #(0, 0, 1)).
+```
+A somewhat more compelling example is to use `ndarray` to solve a system of linear equations.If the equation system is expressed in the matrix form **`A`**`• x = b`, the entire solution set can also be expressed in matrix form. If the matrix **`A`** is square (has m rows and n=m columns) and has full rank (all m rows are independent), then the system has a unique solution given by `x = `**`A`**<sup>`-1`</sup>`•b`.
+
+For the set of equations:
+```
+x + y + z + w = 13 
+2x + 3y − w = −1 
+−3x + 4y + z + 2w = 10 
+x + 2y − z + w = 1
+```
+Using flag `prefer_rationals=true`:
+```
+?- A is ndarray([[1,1,1,1],[2,3,0,-1],[-3,4,1,2],[1,2,-1,1]]), 
+B is ndarray([[13],[-1],[10],[1]]), 
+Vs is ndarray([[X],[Y],[Z],[W]]), 
+Vs is dot(inverse(A),B).
+A = #(#(1, 1, 1, 1), #(2, 3, 0, -1), #(-3, 4, 1, 2), #(1, 2, -1, 1)),
+B = #(#(13), #(-1), #(10), #(1)),
+Vs = #(#(2), #(0), #(6), #(5)),
+X = 2,
+Y = 0,
+Z = 6,
+W = 5.
 ```
 
 #### Caveats
