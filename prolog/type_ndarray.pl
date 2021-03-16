@@ -45,14 +45,8 @@
 :- arithmetic_function(determinant/1).  % determinant of square matrix
 :- arithmetic_function(inverse/1).    % inverse of square matrix
 
-/* numpy - ndarray functions
-reshape, ravel, flatten, resize - lists:flatten,
-**
-cumsum		                on axis?  
-vstack, hstack
-*/
-
-% definition of a N dimensional array
+%
+% Exports: filter for a N dimensional array
 ndarray(Arr) :- ndarray_(Arr,_).
 
 % for internal use, D is first dimension	
@@ -63,33 +57,6 @@ ndarray_(Arr,D) :- (compound(Arr) ; integer(D)), !,
 % helper functions for N dimensional array
 %
 
-% indexing and slicing - used by pretty much everything 
-/*  
-index_arr(Arr0[I1,I2|IN],X):- !,
-	index_arr(Arr0[I1],Arr1),  %	Arr1 is Arr0[I1],
-	index_arr(Arr1[I2|IN],X).  %	X is Arr1[I2|In].
-
-index_arr(Arr0[B:E],Arr) :-                   % slicing evaluates to array
-	ndarray_(Arr0,Len),
-	slice_parameters(B:E,Len,Start,SLen), SLen>0, !,
-	ndarray_(Arr,SLen),
-	sub_term(0,SLen,Start,Arr0,Arr).
-index_arr(Arr0[Ix],X) :-                      % indexing evaluates to element
-	ndarray_(Arr0,Len),	
-	index_parameters(Ix,Len,I),
-	AIx is I+1,  % index_parameters are 0 based, arg is 1 based
-	arg(AIx,Arr0,X).
-*/
-sub_term(Ix,Len,Start,From,To) :-
-	(Ix < Len
-	 -> ToIx is Ix+1,
-	 	FromIx is Start+ToIx,
-		arg(FromIx,From,El),
-		arg(ToIx,To,El),
-		sub_term(ToIx,Len,Start,From,To)
-	 ;  true
-	).
-	
 % create uninitialized
 new_ndarray([D|Dn],Arr) :- integer(D), D>0,
 	ndarray_(Arr,D),
@@ -148,12 +115,7 @@ to_list(Arr,List) :- ndarray(Arr),
 %
 [](Arr, Arr) :- 
 	ndarray(Arr).
-/* 
-[](Ix, Arr, R) :- 
-	ndarray(Arr), 
-	index_arr([](Ix,Arr),R).
-*/	
-[]([B:E],Arr,R) :-                   % slicing evaluates to array
+[]([B:E],Arr,R) :-                     % slicing evaluates to array
 	ndarray_(Arr,Len),
 	slice_parameters(B:E,Len,Start,SLen), SLen>0, !,
 	ndarray_(R,SLen),
@@ -164,6 +126,16 @@ to_list(Arr,List) :- ndarray(Arr),
 	AIx is I+1,  % index_parameters are 0 based, arg is 1 based
 	arg(AIx,Arr,R).
 
+sub_term(Ix,Len,Start,From,To) :-      % like sub_string
+	(Ix < Len
+	 -> ToIx is Ix+1,
+	 	FromIx is Start+ToIx,
+		arg(FromIx,From,El),
+		arg(ToIx,To,El),
+		sub_term(ToIx,Len,Start,From,To)
+	 ;  true
+	).
+	
 
 %
 % Function: shape
@@ -244,8 +216,6 @@ transpose1_([R,C|S],Arr,TArr) :-
 	transpose_mtrx(CIx,RIx,RIx,Arr,TArr).
 
 transpose_mtrx(C,R,Rows,Arr,TArr) :-
-%	index_arr(Arr[R,C],V),
-%	index_arr(TArr[C,R],V),
 	V is Arr[R,C],
 	V is TArr[C,R],
 	(matrix_iterate(C,R,Rows,NxtC,NxtR) -> transpose_mtrx(NxtC,NxtR,Rows,Arr,TArr) ; true).
@@ -279,7 +249,6 @@ identity(ndarray,N,IdArr) :-  integer(N), N>1,
 
 diagonal_(N,Arr) :-
 	(N>=0
-%	 ->	index_arr(Arr[N,N],1),
 	 ->	Arr[N,N] is 1,
 		Nxt is N-1,
 		diagonal_(Nxt,Arr)
@@ -643,7 +612,7 @@ apply_subarrays(N,Op,Ds,V,F,VR) :-
 acc_subarray(N,Op,Ds,V,Acc,R) :-
 	(N>0
 	 ->	I is N-1,
-		(number(V) -> Vi=V ; []([I],V,Vi)),  % index_arr(V[I],Vi)),  %  VS is V[I]),        % simple "broadcst" 
+		(number(V) -> Vi=V ; []([I],V,Vi)),  % index_arr(V[I],Vi)),  %  VS is V[I]),        % simple "broadcast" 
 		SubOp =.. [Op,Ds,Vi,Acc,AccR], SubOp,      % SubOp(Ds,VS1,VS2,VSR)
 		acc_subarray(I,Op,Ds,V,AccR,R)
 	 ;	R=Acc

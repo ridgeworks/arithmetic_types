@@ -1,5 +1,5 @@
 #### Introduction
-Prolog has provided functional arithmetic since the very early days, and support for user defined functions was often provided via predicates which had the result as the last argument. When SWI_Prolog introduced optimized arithmetic, this capability was dropped, but a partial solution was provided using `library(arithmetic)`:
+Prolog has provided functional arithmetic since the very early days, and support for user defined functions was often provided via predicates which had the result as the last argument. When SWI-Prolog introduced optimized arithmetic, this capability was dropped, but a partial solution was provided using `library(arithmetic)`:
 ```
 /** <module> Extensible arithmetic
 
@@ -11,43 +11,49 @@ between Prolog predicates  used  as   functions  and  built-in evaluable
 terms.
 */
 ```
-This is accomplished using goal/term expansion that moves any user defined functions into separate calls and connects the results back into the original expression via shared variables. This expansion is done when the module containing the expression is loaded, so dynamic evaluation of expressions with user defined functions was lost.
+This is accomplished using goal expansion that moves any user defined functions into separate calls and connects the results back into the original expression via shared variables. This expansion is done when the module containing the expression is loaded, so dynamic evaluation of expressions with user defined functions was lost.
 
-The other restriction of the existing functional arithmetic is that user defined functions are restricted to numeric arguments and return values. In many situations, functional notation is more expressive and improves readability compared to a conjunction of goals, which is largely why Prolog has used it for arithmetic for some time. But it would be useful if the same capability was extended to other types to support the creation of mini functional DSL's. Combining this with arithmetic evaluation supports mixed type expressions which include numbers. A few examples:
+Another restriction of the existing functional arithmetic is that user defined functions are generally restricted to numeric arguments and return values. In many situations, functional notation is more expressive and improves readability compared to a conjunction of goals, which is largely why Prolog has used it for arithmetic for some time. But it would be useful if the same capability was extended to other types to support the creation of mini functional DSL's. Combining this with arithmetic evaluation supports mixed type expressions which include numbers. A few examples:
 ```
 ?- Ch = "D", Lower is "abcdefghijklmnopqrstuvwxyz"[Ch-"A"].  % convert `Ch` to lower case
 Ch = "D",
 Lower = d.
 
-?- N = 1, D = 2, Q is [sign(N)*inf, N/D][D=\=0].  % list items are lazily evaluated
-N = 1,
-D = 2,
-Q = 0.5.
+?- between(0,1,Den), between(-1,1,Num),
+   Q is [[-inf,nan,inf][sign(Num)+1], Num/Den][Den\==0].     % divide by 0 check --> IEEE values
+Den = 0,
+Num = -1,
+Q = -1.0Inf ;
+Den = Num, Num = 0,
+Q = 1.5NaN ;
+Den = 0,
+Num = 1,
+Q = 1.0Inf ;
+Den = 1,
+Num = Q, Q = -1 ;
+Den = 1,
+Num = Q, Q = 0 ;
+Den = Num, Num = Q, Q = 1.
 
-?- N = 1, D = 0, Q is [sign(N)*inf, N/D][D=\=0].  % flag(float_overflow_)=infinity
-N = 1,
-D = 0,
-Q = 1.0Inf.
-
-?- A2 is ndarray([[4,7],[2,6]]), I2 is inverse(A2).  % flag(prefer_rationals)=true
+?- A2 is ndarray([[4,7],[2,6]]), I2 is inverse(A2).          % flag(prefer_rationals)=true
 A2 = #(#(4, 7), #(2, 6)),
 I2 = #(#(3r5, -7r10), #(-1r5, 2r5)).
 ```
-The `arithmetic_types` module included in this pack is an extension of `library(arithmetic)`. It enables list and atomic literals as function arguments, as well as user defined types (compound terms). 
+The `arithmetic_types` module included in this pack is an extension of `library(arithmetic)`. It enables list and atomic literals, as well as user defined types (compound terms),  as function arguments and return values. 
 
 Extending the set of types available for use in arithmetic expressions raises the possibility of supporting polymorphic functions. These are functions with a common functor symbol and arity but whose semantics depends on the actual input arguments. For example, the same function template used for indexing or concatenating strings could be used for performing the same "function" for any sequence type, e.g., lists or arrays. (This is a familiar concept in object oriented languages where the same method signature is used in many classes; each class provides its own implementation (or inherits one from its superclass).)
 
-There are a couple of options for implementing polymorphic functions in Prolog. Perhaps an obvious one is to them as multiple clauses in a single predicate. If such a predicate was `multifile`, then each "type module" (a module implementing a set of functions for a user defined type), could implement a clause implementing the semantics for that type. This creates a dependency between the types, e.g., an inadvertent cut in one implementation could remove the option of success in another. And all implementations would have to agree on a module context "owning" the function in question.
+There are a couple of options for implementing polymorphic functions in Prolog. Perhaps an obvious one is to view them as multiple clauses in a single predicate. If such a predicate was `multifile`, then each "type module" (a module implementing a set of functions for a user defined type), could implement a clause implementing the semantics for that type. This creates a dependency between the types, e.g., an inadvertent cut in one implementation could remove the option of success in another. And all implementations would have to agree on a module context "owning" the function in question.
 
-An alternative model, and the one adapted in this design, is to treat each implementation as private, i.e., there need not be a user "callable" predicate interface to a function. Rather, each type module "registers" its implementation of a (polymorphic) function using the `arithmetic_function/1` directive. This way each type module can be totally independent from a perspective of defining functions; no multifile requirement or common context to define. Once a function is registered, it is globally available for use in arithmetic evaluation. At the same time there is nothing restricting a user from defining a common callable predicate as described in the previous paragraph. Indeed it's fairly simple to define a function using a pre-existing predicate, e.g., `string_length/2` that fits the requirement of a "function predicate" (last argument is the result).
+An alternative model, and the one adapted in this design, is to treat each implementation as private, i.e., there need not be a user "callable" predicate interface to a function. Rather, each type module "registers" its implementation of a (polymorphic) function using the `arithmetic_function/1` directive. This approach enables each type module to be totally independent from a perspective of defining functions; no multifile requirement or common context to define. Once a function is registered, it is globally available for use in arithmetic evaluation. At the same time there is nothing restricting a user from defining a common callable predicate as described in the previous paragraph. Indeed it's fairly simple to define a function using a pre-existing predicate, e.g., `string_length/2` that fits the requirement of a "function predicate" (last argument is the result).
 
-This second model is analogous to how OOP languages provide polymorphism, i.e., each class:method  is an independent implementation; it's just that the method is selected by the class, i.e., type, of the object involved. Prolog has no such concept, so the argument type checking must be performed by the function. If the checking fails, the function must fail to permit an alternative implementation a chance at success. The flip side is that functions are deterministic; once it succeeds, backtracking has no effect.
+This second model is loosely analogous to how OOP languages provide polymorphism, i.e., each `class.method`  is an independent implementation (ignoring inheritance); it's just that the method selected is determined by the class, i.e., type, of the object involved. Prolog has no such concept, so the argument type checking must be performed by the function. If the checking fails, the function must fail to permit an alternative implementation a chance at success. The flip side is that functions are deterministic; once they succeed, the possibility of trying other function implementations via backtracking is eliminated.
 
-The second model is also similar to arithmetic functions builtin to Prolog, i.e., they are globally available and not directly callable, e.g., there is no exported `max/3` predicate.
+From a scoping perspective, the second model is also similar to builtin arithmetic functions, i.e., they are globally available and not directly callable, e.g., there is no exported `max/3` predicate.
 
-Module `arithmetic_types` supports the same `exports` list and core semantics as `arithmetic` (it was derived from a clone), but it performs term and goal expansion before `arithmetic` (context `user` before `system`).
+Module `arithmetic_types` supports the same `exports` list and core semantics as `arithmetic` (it was derived from a clone), but it performs term and goal expansion before `arithmetic` (context `user` before `system`). Effectively, it overrides `library(arithmetic)` once it is loaded.
 
-Also included in this pack are a few "type modules" described below. These are meant to act as examples but feel free to use or extend them as you see fit.
+Also included in this pack are a few "type modules" described below. These are meant to act as motivating examples; a starter kit rather than a definitive library.
 
 #### `type_bool`
 As described above, it is recommended  to package groups of functions according to their type. So, for example, a `type_bool` module would define some functions with boolean argument values, e.g., `and`, `or`, and `not`, along with functions that produce boolean values, e.g., comparisons. The interface to such a module might look like:
@@ -343,7 +349,7 @@ W = 5.
 ```
 
 #### Caveats
-Over a number of major releases, SWI-Prolog arithmetic has acquired a few "idiosyncrasies"; legal literal terms which are not numbers syntactically. These include atoms representing 0 arity functions (e.g.,`e, pi, inf`) , lists of length 1 (e.g., `[a], [97]`), strings of length 1 (e.g., "a"), and dictionary support (e.g., `dict.key`). To maintain strict backwards compatibility, these will continue to have the builtin arithmetic semantics:
+Over a number of major releases, SWI-Prolog arithmetic has acquired a few "idiosyncrasies"; legal literal terms which are not numbers syntactically. These include atoms representing 0 arity functions (e.g.,`e, pi, inf`) , lists of length 1 (e.g., `[a], [97]`), strings of length 1 (e.g., "a"), and dictionary support (e.g., `dict.key`). To maintain strict backwards compatibility, these continue to have the builtin arithmetic semantics:
 ```
 ?- X is [a,b,c,d,e][-1], Y is [a,b,c,d,e][0].
 X = 2.718281828459045,
@@ -376,7 +382,7 @@ Module `arithmetic_types` provides the functionality of `library(arithmetic)` bu
 ```
 ERROR: import/1: No permission to import arithmetic_types:arithmetic_expression_value/2 into user (already imported from arithmetic)
 ```
-This generally doesn't cause any problems but calls to `arithmetic_expression_value/2` may have to be qualified, depending on which module "owns" the user function definition. If `arithmetic_types` is used, a good strategy is to load it first (i.e., before `library(arithmetic)`).
+This generally doesn't cause any problems because any failure by `arithmetic_types` to either expand math goals or evaluate expressions will fail to `library(arithmetic)`. In some rare cases calls to `arithmetic_expression_value` may require module qualification. 
 
 #### Getting Started
 
@@ -387,5 +393,12 @@ Module `arithmetic_types` and the type modules described above are available as 
 ?- use_module(library(arithmetic_types)).
 true.
 ```
-Once the pack has been installed, any of the provided type modules can be imported via `use_module`.
+Once the pack has been installed, any of the provided type modules can be loaded using `use_module`.
+
+As a general principle, generating errors is avoided but diagnostic messages indicating possible problems are output when `debug` mode is enabled:
+```
+﻿[debug]  ?- N=1, D=0, Q is [inf, N/D][D=\=0].
+% arithmetic_types: failed to evaluate 0=\=0 .
+false.
+```
 

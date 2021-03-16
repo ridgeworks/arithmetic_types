@@ -39,6 +39,11 @@
 		  ]).
 :- autoload(library(error),[type_error/2]).     % for compile/load errors
 
+% the following permits calls to library(arithmetic) of evaluation fails here
+:- use_module(library(arithmetic), 
+		[arithmetic_expression_value/2 as def_arithmetic_expression_value]
+		     ).
+		
 %:- set_prolog_flag(generate_debug_info, false).
 
 /** <module> Extensible arithmetic types
@@ -167,8 +172,7 @@ eval(Literal, Result) :- atom(Literal),  % then if atom, maybe 0 arity user func
 eval(Literal, Literal) :- atomic(Literal),  % then other literals - evaluate to themselves
 	!.
 eval(Term, Result) :-      % then see if library(arithmetic) works
-	current_module(arithmetic),
-	catch(arithmetic:arithmetic_expression_value(Term, Result),_,fail),
+	catch(def_arithmetic_expression_value(Term, Result),_,fail),
 	!.
 eval(Term, _Result) :-     % then fail
 	eval_error(Term).
@@ -188,7 +192,7 @@ eval_user(Function, Result) :-
 %
 eval_error(Term) :-
 	current_prolog_flag(debug, true),  % if false, silent fail
-	print_message(warning, arithmetic_types(Term)),
+	print_message(debug(arithmetic_types), arithmetic_types(Term)),
 	fail.
 
 prolog:message(arithmetic_types(Term)) -->

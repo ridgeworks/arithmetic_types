@@ -27,20 +27,6 @@
 :- arithmetic_function(arange/4).     % list from range(B,E,S)
 
 %
-% is/2 with LHS block ref
-%
-%user:goal_expansion(Ref is Exp, (X is Exp, X is Ref)) :-
-%	nonvar(Ref), block_ref(Ref).
-%user:goal_expansion(Ref is Exp, Goal) :-
-%	nonvar(Ref), block_ref(Ref),
-%	goal_expansion((X is Exp, X is Ref),Goal).
-
-% LHS can be block notation or a list
-block_ref(_[_|_]).
-block_ref(_[]).
-block_ref(L) :- is_list(L).
-
-%
 % Exports
 %
 %  sub_atom/5 for lists	
@@ -71,41 +57,26 @@ slice_parameters(B:E,Len,SBegin,SLen) :-
 
 % index parm
 index_parameters(Ix,Len,I) :-
-%	arithmetic_types:arithmetic_expression_value(Ix,EIx),  % may not be evaluated
 	item_eval(Ix,EIx),	
 	integer(EIx),
 	(EIx < 0 -> I is Len+EIx ; I = EIx),
 	I >= 0.
 
 % evaluate (largely for efficiency)
-item_eval(X,X) :- var(X), !.                        % vars OK in lists
-item_eval(N,N) :- number(N), !.                     % optimization
-%item_eval(L,R) :- is_list(L), !,                    % optimization
-%	list_eval(L,R).
+item_eval(X,X) :- var(X), !.                          % vars OK in lists
+item_eval(N,N) :- number(N), !.                       % optimization
 item_eval(X,R) :- 
-	catch(arithmetic_expression_value(X,R),_,R=X).  % catchall
+	catch(arithmetic_expression_value(X,R), _, R=X).  % catchall, identity function
 
 %
 % Function: generic slice expression - pass through until used
 %
 ':'(B,E,B:E). 
-%':'(B,E,Br:Er) :- 
-%	item_eval(B,Br),  %(var(B) -> Br=B ; arithmetic_types:arithmetic_expression_value(B,Br)), 
-%	item_eval(E,Er).  %(var(E) -> Er=E ; arithmetic_types:arithmetic_expression_value(E,Er)). 
 
 %
 % Function: evaluate list items
 % 
 '[|]'(X,Xs,[X|Xs]).        % lazy evaluation
-/* 
-%'[|]'(X,Xs,R) :-
-%	list_eval([X|Xs], R).  % forego maplist for efficiency
-
-list_eval([],[]).
-list_eval([X|Xs],[R|Rs]) :-
-	item_eval(X,R),
-	list_eval(Xs,Rs).
-*/
 
 %
 % Function: create new list
@@ -181,4 +152,3 @@ arange_(B,E,_S,[]) :- B>=E, !.
 arange_(B,E,S,[B|Vs]) :- 
 	B1 is B+S,
 	arange_(B1,E,S,Vs).
-

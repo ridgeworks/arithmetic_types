@@ -37,20 +37,22 @@ not(B,R)     :- bool(B), R is (B+1) mod 2.
 % Function: atomic term comparisons
 %
  ==(N1,N2,R) :- number(N1), number(N2), !, (N1 =:= N2 -> R=1 ; R=0).
- ==(N1,N2,R) :- atomic(N1), atomic(N2),    (N1  == N2 -> R=1 ; R=0).
+ ==(A1,A2,R) :- atomic(A1), atomic(A2),    (A1  =  A2 -> R=1 ; R=0).
 
-\==(N1,N2,R) :- number(N1), number(N2), !, (N1 =:= N2 -> R=1 ; R=0).
-\==(N1,N2,R) :- atomic(N1), atomic(N2),    (N1 =\= N2 -> R=1 ; R=0).
+\==(N1,N2,R) :- number(N1), number(N2), !, (N1 =:= N2 -> R=0 ; R=1).
+\==(A1,A2,R) :- atomic(A1), atomic(A2),    (A1  =  A2 -> R=0 ; R=1).
 
-  <(N1,N2,R) :- atomic(N1), atomic(N2),    (N1  @< N2 -> R=1 ; R=0).
+  <(N1,N2,R) :- number(N1), number(N2), !, (N1  <  N2 -> R=1 ; R=0).
+  <(A1,A2,R) :- atomic(A1), atomic(A2),    (A1  @< A2 -> R=1 ; R=0).
   
  =<(N1,N2,R) :- number(N1), number(N2), !, (N1  =< N2 -> R=1 ; R=0).
- =<(N1,N2,R) :- atomic(N1), atomic(N2),    (N1 @=< N2 -> R=1 ; R=0).
+ =<(A1,A2,R) :- atomic(A1), atomic(A2),    (A1 @=< A2 -> R=1 ; R=0).
  
  >=(N1,N2,R) :- number(N1), number(N2), !, (N1  >= N2 -> R=1 ; R=0).
- >=(N1,N2,R) :- atomic(N1), atomic(N2),    (N1 @>= N2 -> R=1 ; R=0).
+ >=(A1,A2,R) :- atomic(A1), atomic(A2),    (A1 @>= A2 -> R=1 ; R=0).
  
-  >(N1,N2,R) :- atomic(N1), atomic(N2),    (N1  @> N2 -> R=1 ; R=0).
+  >(N1,N2,R) :- number(N1), number(N2), !, (N1  >  N2 -> R=1 ; R=0).
+  >(A1,A2,R) :- atomic(A1), atomic(A2),    (A1  @> A2 -> R=1 ; R=0).
 
 %
 % Function: between
