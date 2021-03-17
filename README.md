@@ -126,7 +126,7 @@ The interface for a `type_list` module might look like:
 :- arithmetic_function(arange/2).     % list from range(0,N)
 :- arithmetic_function(arange/3).     % list from range(B,E)
 :- arithmetic_function(arange/4).     % list from range(B,E,Step)
-````
+```
 There already is a filter for type testing (`is_list`), so we don't need one of those; just a couple of operators for block notation and append (`\\`), and some generic support for indexing and slicing that could be used by other sequence types, e.g., strings. A subset of the defined functions:
 ```
 %
