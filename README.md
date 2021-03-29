@@ -108,7 +108,6 @@ The interface for a `type_list` module might look like:
 	[
 	op(100, yf,  []),    % support block notation
 	op(500, yfx, \\),    % for appending (pseudo SQL ||)
-	sub_list/5,          % sub_atom/5 analogy for lists
 	slice_parameters/4,  % slice support for blocks
 	index_parameters/3   % index support for blocks
 	]).
@@ -130,6 +129,11 @@ The interface for a `type_list` module might look like:
 There already is a filter for type testing (`is_list`), so we don't need one of those; just a couple of operators for block notation and append (`\\`), and some generic support for indexing and slicing that could be used by other sequence types, e.g., strings. A subset of the defined functions:
 ```
 %
+% Function: generic slice expression - pass through until used
+%
+':'(B,E,B:E). 
+
+%
 % Function: evaluate list items
 % 
 '[|]'(X,Xs,[X|Xs]).        % lazy evaluation
@@ -141,11 +145,6 @@ new(list,Size,L) :- integer(Size), Size >= 0, (nonvar(L) -> is_list(L) ; true), 
 	length(L,Size).
 
 new(list,Xs,Xs) :- is_list(Xs).
-
-%
-% Function: generic slice expression - pass through until used
-%
-':'(B,E,B:E). 
 
 %
 % Function: indexing and slicing
@@ -244,7 +243,10 @@ SWI-Prolog `string`'s are another example of a sequence type, so it seems advant
 
 :- current_module(arithmetic_types) -> true ; use_module(library(arithmetic_types)).
 % uses operators and slice/indexing support from type_list
-:- (current_module(type_list) -> true ; use_module(library(type_list))).
+% for indexing and slicing support
+:- current_module(type_list) 
+	-> true 
+	;  reexport(library(type_list)).      % reexport for operators
 
 :- arithmetic_function(string/1).         % term to string conversion
 :- arithmetic_function([]/1).             % indexing (char) and slicing (substring)

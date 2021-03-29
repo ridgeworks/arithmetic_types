@@ -2,7 +2,6 @@
 	[
 	op(100, yf,  []),    % support block notation
 	op(500, yfx, \\),    % for appending (pseudo SQL ||)
-	sub_list/5,          % sub_atom/5 analogy for lists
 	slice_parameters/4,  % slice support for blocks
 	index_parameters/3   % index support for blocks
 	]).
@@ -12,7 +11,6 @@
 % Also provides:
 %  1. Generic slice evaluation (used inside block indexing)
 %  2. Generic evaluation of list items
-%  3. Expansion of is/2 with an indexed expression on LHS
 
 :- arithmetic_function(new/2).        % create
 :- arithmetic_function('[|]'/2).      % evaluate list items
@@ -29,25 +27,6 @@
 %
 % Exports
 %
-%  sub_atom/5 for lists	
-sub_list(L,Before,Length,After,SubL) :- integer(Before), integer(Length), is_list(L),
-	skip_N(Before,L,L1),         % remove prefix
-	next_N(Length,L1,SubL,L2),   % collect sub list and suffix	
-	length(L2,After),            % length of suffix
-	!.                           % deterministic
-
-skip_N(0,In,In):- !.
-skip_N(1,[_|In],In):- !.
-skip_N(N,[_,_|Xs],Out) :-                  % N>0,  % superfluous check
-	N1 is N-2,
-	skip_N(N1,Xs,Out).	
-	
-next_N(0,In,[],In) :- !.
-next_N(1,[X|In],[X],In) :- !.
-next_N(N,[X1,X2|In],[X1,X2|Out],Rem) :-	   % N>0,  % superfluous check
-	N1 is N-2,
-	next_N(N1,In,Out,Rem).	
-
 % slice parms
 slice_parameters(B:E,Len,SBegin,SLen) :-
 	item_eval(B,Br), (var(Br) -> Br=0 ; integer(Br)),
@@ -104,6 +83,25 @@ new(list,Xs,Xs) :- is_list(Xs).
 	(I =< 28 -> skip_N(I,L,[X|_]) ; (T=..[$|L], arg(I,T,X))),
 	item_eval(X,R).  % evaluate selected item
     
+%  sub_atom/5 for lists
+sub_list(L,Before,Length,After,SubL) :- integer(Before), integer(Length), is_list(L),
+	skip_N(Before,L,L1),         % remove prefix
+	next_N(Length,L1,SubL,L2),   % collect sub list and suffix	
+	length(L2,After),            % length of suffix
+	!.                           % deterministic
+
+skip_N(0,In,In):- !.
+skip_N(1,[_|In],In):- !.
+skip_N(N,[_,_|Xs],Out) :-                  % N>0,  % superfluous check
+	N1 is N-2,
+	skip_N(N1,Xs,Out).	
+	
+next_N(0,In,[],In) :- !.
+next_N(1,[X|In],[X],In) :- !.
+next_N(N,[X1,X2|In],[X1,X2|Out],Rem) :-	   % N>0,  % superfluous check
+	N1 is N-2,
+	next_N(N1,In,Out,Rem).	
+
 %
 % Function: size/length
 %

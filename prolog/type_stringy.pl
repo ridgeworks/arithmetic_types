@@ -2,7 +2,10 @@
 
 :- current_module(arithmetic_types) -> true ; use_module(library(arithmetic_types)).
 % uses operators and slice/indexing support from type_list
-:- (current_module(type_list) -> true ; use_module(library(type_list))).
+% for indexing and slicing support
+:- current_module(type_list) 
+	-> true 
+	;  reexport(library(type_list)).      % reexport for operators
 
 :- arithmetic_function(string/1).         % term to string conversion
 :- arithmetic_function([]/1).             % indexing (char) and slicing (substring)
@@ -40,7 +43,7 @@ string(Term,S)   :-
 % Function: string concat (\\)
 %
 \\(S1,S2,R) :- stringy(S1), stringy(S2),     % arguments must be stringy
-	string_concat(S1,S2,R), !.	             % deterministic concat
+	string_concat(S1,S2,R), !.               % deterministic concat
 
 %
 % Function: find - returns position of substring in string (like Python)
@@ -49,4 +52,4 @@ find(Sub,S,R) :- stringy(Sub), stringy(S),   % arguments must be stringy
 	(sub_string(S,R,_,_,Sub)
 	 -> true
 	 ; R= -1  % not found value
-	).	            
+	).

@@ -14,10 +14,10 @@ test_list_fns :-
 :- begin_tests(list_functions).
 
 test(sub_list) :-
-	sub_list([1,2,3], 0,1, 2,[1]),
-	sub_list([1,2,3], 1,2, 0,[2,3]),
-	\+ sub_list([1,2,3], _,2, 0,[2,3]),
-	\+ sub_list([1,2,3], 0,_, 0,[2,3]).
+	type_list:sub_list([1,2,3], 0,1, 2,[1]),
+	type_list:sub_list([1,2,3], 1,2, 0,[2,3]),
+	\+ type_list:sub_list([1,2,3], _,2, 0,[2,3]),
+	\+ type_list:sub_list([1,2,3], 0,_, 0,[2,3]).
 	
 test(newlist) :-
 	L is new(list,3),

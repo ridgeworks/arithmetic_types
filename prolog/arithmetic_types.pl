@@ -142,7 +142,7 @@ term_expansion(eval('$builtin', _), Clauses) :-
 
 restore_optimise :-  % restore "optimise" flag
 	(nb_current('arithmetic_types:optflag', Opt) 
-	 -> (nb_delete('arithmetic_types: optflag'), set_prolog_flag(optimise,Opt))
+	 -> (nb_delete('arithmetic_types:optflag'), set_prolog_flag(optimise,Opt))
 	 ; true
 	).
 

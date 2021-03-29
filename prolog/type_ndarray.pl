@@ -10,7 +10,9 @@
 
 :- current_module(arithmetic_types) -> true ; use_module(library(arithmetic_types)).
 % for indexing and slicing support, arange/n content
-:- current_module(type_list) -> true ; use_module(library(type_list)).
+:- current_module(type_list) 
+	-> true 
+	;  reexport(library(type_list)).  % reexport for operators
 
 :- arithmetic_function(new/2).        % new from shape, uninitialized
 :- arithmetic_function(ndarray/1).    % new from ListOfLists
@@ -45,8 +47,7 @@
 :- arithmetic_function(determinant/1).  % determinant of square matrix
 :- arithmetic_function(inverse/1).    % inverse of square matrix
 
-%
-% Exports: filter for a N dimensional array
+% definition of a N dimensional array
 ndarray(Arr) :- ndarray_(Arr,_).
 
 % for internal use, D is first dimension	
@@ -56,7 +57,6 @@ ndarray_(Arr,D) :- (compound(Arr) ; integer(D)), !,
 %
 % helper functions for N dimensional array
 %
-
 % create uninitialized
 new_ndarray([D|Dn],Arr) :- integer(D), D>0,
 	ndarray_(Arr,D),
@@ -115,7 +115,7 @@ to_list(Arr,List) :- ndarray(Arr),
 %
 [](Arr, Arr) :- 
 	ndarray(Arr).
-[]([B:E],Arr,R) :-                     % slicing evaluates to array
+[]([B:E],Arr,R) :-                   % slicing evaluates to array
 	ndarray_(Arr,Len),
 	slice_parameters(B:E,Len,Start,SLen), SLen>0, !,
 	ndarray_(R,SLen),
@@ -126,7 +126,7 @@ to_list(Arr,List) :- ndarray(Arr),
 	AIx is I+1,  % index_parameters are 0 based, arg is 1 based
 	arg(AIx,Arr,R).
 
-sub_term(Ix,Len,Start,From,To) :-      % like sub_string
+sub_term(Ix,Len,Start,From,To) :-
 	(Ix < Len
 	 -> ToIx is Ix+1,
 	 	FromIx is Start+ToIx,
@@ -135,7 +135,6 @@ sub_term(Ix,Len,Start,From,To) :-      % like sub_string
 		sub_term(ToIx,Len,Start,From,To)
 	 ;  true
 	).
-	
 
 %
 % Function: shape
@@ -263,7 +262,7 @@ sum(A,ASum) :- ndarray(A), !,
 	sum_array(Shp,A,0,ASum).
 	
 sum_array([],N,Acc,R) :-
-	R is Acc+N.  % final dimension, use accumulate number
+	catch(add(Acc,N,R),Err, constrain(Err,R is Acc+N)).  % final dimension, use accumulate number
 sum_array([D|Ds],A,Acc,R) :-
 	acc_subarray(D,sum_array,Ds,A,Acc,R).
 
@@ -275,7 +274,7 @@ min(A,AMin) :- ndarray(A), !,
 	min_array(Shp,A,inf,AMin).
 	
 min_array([],N,Acc,R) :-
-	R is min(Acc,N).  % final dimension, use min
+	catch(min(Acc,N,R), Err, constrain(Err,R is min(Acc,N))).  % final dimension, use min
 min_array([D|Ds],A,Acc,R) :-
 	acc_subarray(D,min_array,Ds,A,Acc,R).
 
@@ -287,7 +286,7 @@ max(A,AMax) :- ndarray(A), !,
 	max_array(Shp,A,-inf,AMax).
 	
 max_array([],N,Acc,R) :-
-	R is max(Acc,N).  % final dimension, use max
+	catch(max(Acc,N,R),Err, constrain(Err,R is max(Acc,N))).  % final dimension, use max
 max_array([D|Ds],A,Acc,R) :-
 	acc_subarray(D,max_array,Ds,A,Acc,R).
 
@@ -309,7 +308,8 @@ max_array([D|Ds],A,Acc,R) :-
 	new_ndarray(Shp,AR),
 	add_arrays(Shp,A1,A2,AR).
 	
-add_arrays([],N1,N2,R) :- !, R is N1 + N2.  % final dimension, use numeric addition
+add_arrays([],N1,N2,R) :- !,
+	catch(add(N1,N2,R), Err, constrain(Err, R is N1 + N2)).  % final dimension, use numeric addition
 add_arrays([D|Ds],A1,A2,AR) :-
 	do_subarrays(D,add_arrays,Ds,A1,A2,AR).
 
@@ -337,7 +337,8 @@ add_arrays([D|Ds],A1,A2,AR) :-
 	new_ndarray(Shp,AR),
 	sub_arrays(Shp,A1,A2,AR).
 	
-sub_arrays([],N1,N2,R) :- !, R is N1 - N2.     % final dimension, use numeric subtraction
+sub_arrays([],N1,N2,R) :- !,
+	catch(sub(N1,N2,R), Err, constrain(Err, R is N1 - N2)).  % final dimension, use numeric subtraction
 sub_arrays([D|Ds],A1,A2,AR) :-
 	do_subarrays(D,sub_arrays,Ds,A1,A2,AR).
 
@@ -359,7 +360,8 @@ sub_arrays([D|Ds],A1,A2,AR) :-
 	new_ndarray(Shp,AR),
 	mul_arrays(Shp,A1,A2,AR).
 	
-mul_arrays([],N1,N2,R) :- !, R is N1 * N2.     % final dimension, use numeric multiplication
+mul_arrays([],N1,N2,R) :- !,
+	catch(mul(N1,N2,R), Err, constrain(Err, R is N1 * N2)).  % final dimension, use numeric multiplication
 mul_arrays([D|Ds],A1,A2,AR) :-
 	do_subarrays(D,mul_arrays,Ds,A1,A2,AR).
 
@@ -381,7 +383,8 @@ mul_arrays([D|Ds],A1,A2,AR) :-
 	new_ndarray(Shp,AR),
 	div_arrays(Shp,A1,A2,AR).
 	
-div_arrays([],N1,N2,R) :- !, R is N1 / N2.  % final dimension, use numeric division
+div_arrays([],N1,N2,R) :- !,
+	catch(div(N1,N2,R), Err, constrain(Err, R is N1 / N2)).  % final dimension, use numeric division
 div_arrays([D|Ds],A1,A2,AR) :-
 	do_subarrays(D,div_arrays,Ds,A1,A2,AR).
 
@@ -403,7 +406,8 @@ div_arrays([D|Ds],A1,A2,AR) :-
 	new_ndarray(Shp,AR),
 	pow_arrays(Shp,A1,A2,AR).
 	
-pow_arrays([],N1,N2,R) :- !, R is N1 ** N2.  % final dimension, use numeric division
+pow_arrays([],N1,N2,R) :- !,
+	catch(pow(N1,N2,R), Err, constrain(Err, R is N1 ** N2)).  % final dimension, use numeric power
 pow_arrays([D|Ds],A1,A2,AR) :-
 	do_subarrays(D,pow_arrays,Ds,A1,A2,AR).
 	
@@ -416,7 +420,8 @@ apply(F,A,AR) :- ndarray(A),
 	apply_arrays(Shp,A,F,AR).
 
 apply_arrays([],N,F,R) :- !,   % final dimension, apply function
-	E=..[F,N], R is E.
+	E=..[F,N], 
+	catch(R is E, Err, constrain(Err, R is E)).
 apply_arrays([D|Ds],A,F,AR) :-
 	apply_subarrays(D,apply_arrays,Ds,A,F,AR).
 
@@ -441,9 +446,9 @@ cross_(A1,A2,AR) :-                   % cross product of two 3D vectors
 	vector3d(A1, A1_0,A1_1,A1_2),
 	vector3d(A2, A2_0,A2_1,A2_2),
 	vector3d(AR, AR_0,AR_1,AR_2),
-	AR_0 is A1_1*A2_2 - A2_1*A1_2,
-	AR_1 is A2_0*A1_2 - A1_0*A2_2,
-	AR_2 is A1_0*A2_1 - A2_0*A1_1.
+	catch(det2x2(A1_1,A1_2,A2_1,A2_2,AR_0), Err, constrain(Err, AR_0 is A1_1*A2_2 - A2_1*A1_2)),
+	catch(det2x2(A2_0,A2_2,A1_0,A1_2,AR_1), Err, constrain(Err, AR_1 is A2_0*A1_2 - A1_0*A2_2)),
+	catch(det2x2(A1_0,A1_1,A2_0,A2_1,AR_2), Err, constrain(Err, AR_2 is A1_0*A2_1 - A2_0*A1_1)).
 
 vector3d(#(N0,N1,N2),N0,N1,N2).
 
@@ -486,10 +491,10 @@ dot_([D], [D,P], A1, A2, AR) :-  !,      % vector (A1), convert to matrix
 dot_([M,N], [N,P] , A1, A2, AR) :-  % matrix multiply
 	new_ndarray([M,P],AR),
 	transpose(A2,TA2),   % shape(TA2)  = [P,N]
-	(P = 1 -> MA2 = #(TA2) ; MA2 = TA2),  % vector (A2), convert to matrix 
+	(P = 1 -> TTA2 = #(TA2) ; TTA2 = TA2),  % if vector(A2), convert to matrix for inner
 	MIx is M-1, PIx is P-1,
-	matrix_mul(MIx,PIx,PIx,A1,MA2,AR).
-	
+	matrix_mul(MIx,PIx,PIx,A1,TTA2,AR).
+
 matrix_mul(M,P,Rows,A1,A2,AR) :-
 	AR[M,P] is inner(A1[M],A2[P]),
 	(matrix_iterate(M,P,Rows,NxtM,NxtP) -> matrix_mul(NxtM,NxtP,Rows,A1,A2,AR) ; true).
@@ -505,7 +510,7 @@ determinant_([1],A,Det) :-
 	[]([0],A,Det).  %index_arr(A[0],Det).
 determinant_([2,2],A,Det) :-
 	A = #( #(A_00,A_01) , #(A_10,A_11) ),
-	Det is A_00*A_11 - A_01*A_10.
+	catch(det2x2(A_00,A_01,A_10,A_11,Det), Err, constrain(Err, Det is A_00*A_11 - A_01*A_10)).
 determinant_([N,N],A,Det) :-
 	map_ndarray([Row|Rest],A),  % convert to list form, use top row
 	MN is N-1,                  % minor dimension
@@ -514,8 +519,12 @@ determinant_([N,N],A,Det) :-
 determinant_(I,N,MN,Row,Rest,Acc,Det) :-
 	(I<N
 	 ->	El is Row[I],
-		minor_determinant_(Rest,I,MN,MDet),
-		NxtA is Acc + El*(-1**I)*MDet,
+	 	(number(El), El =:= 0
+	 	 -> NxtA = Acc  % element is 0, no use calculating determinant
+	 	 ;	minor_determinant_(Rest,I,MN,MDet),
+ 			I1 is 1 - 2*(I mod 2), % alternating 1 and -1 
+	 	 	catch(acc_det(Acc,El,I1,MDet,NxtA), Err, constrain(Err, NxtA is Acc + El*I1*MDet))
+	 	),
 		NxtI is I+1,
 		determinant_(NxtI,N,MN,Row,Rest,NxtA,Det)
 	 ;	Det=Acc
@@ -523,7 +532,7 @@ determinant_(I,N,MN,Row,Rest,Acc,Det) :-
 
 minor_determinant_(List,I,2,Det) :- !,
 	minor(List,I,[ [A_00,A_01], [A_10,A_11] ]),
-	Det is A_00*A_11 - A_01*A_10.		
+	catch(det2x2(A_00,A_01,A_10,A_11,Det), Err, constrain(Err, Det is A_00*A_11 - A_01*A_10)).
 minor_determinant_(List,I,MN,Det) :-
 	minor(List,I,[Row|Rest]),      % list form of minor
 	MMN is MN-1,
@@ -548,18 +557,20 @@ inverse(A,Inv) :- ndarray(A),
 	
 inverse_([1],A,Inv) :- !,
 	A0 is A[0],
-	zero_div_chk(1,A0,IN), 
+	catch(inv(A0,IN), Err, constrain(Err, IN is 1/A0)),  % fails if det=0
 	ndarray([IN],Inv).
 inverse_([2,2],A,Inv) :- !,     % special case 2x2 to avoid vector edge cases in NxN
-	determinant_([2,2],A,ADet), 
-	zero_div_chk(1,ADet,IDet),  % may fail if determinant=0
+	determinant_([2,2],A,ADet),
+	catch(inv(ADet,IDet), Err, constrain(Err, IDet is 1/ADet)),  % fails if det=0
 	A = #( #(A_00,A_01) , #(A_10,A_11) ),
-	I_00 is A_11*IDet, I_01 is -A_01*IDet,
-	I_10 is -A_10*IDet, I_11 is A_00*IDet,
+	catch(mul(A_11,IDet,I_00), Err, constrain(Err,I_00 is  A_11*IDet)),
+	catch(mml(A_01,IDet,I_01), Err, constrain(Err,I_01 is -A_01*IDet)),
+	catch(mml(A_10,IDet,I_10), Err, constrain(Err,I_10 is -A_10*IDet)),
+	catch(mul(A_00,IDet,I_11), Err, constrain(Err,I_11 is  A_00*IDet)),
 	ndarray([[I_00, I_01], [I_10, I_11]],Inv).
 inverse_([N,N],A,Inv) :-
 	determinant_([N,N],A,ADet), 
-	zero_div_chk(1,ADet,IDet),  % may fail if determinant=0
+	catch(inv(ADet,IDet), Err, constrain(Err, IDet is 1/ADet)),  % fails if det=0
 	new_ndarray([N,N],Inv),
 	map_ndarray(AList,A),       % use list form for minor/3
 	D is N-1,  % for indexing
@@ -568,7 +579,9 @@ inverse_([N,N],A,Inv) :-
 inverse_iterate_(R,C,D,IDet,AList,Inv) :-
 	sub_array_(R,D,AList,Sub),
 	minor_determinant_(Sub,C,D,SDet),
-	Inv[C,R] is -1**(R+C)*SDet*IDet,  % single calculation includes transpose & cofactors
+	X is Inv[C,R],             % inverted array element (transpose(A[R,C])
+	Sgn is 1-2*((R+C)mod 2),   % alternating -1,1	
+	catch(mul3(Sgn,SDet,IDet,X), Err, constrain(Err, X is Sgn*SDet*IDet)),
 	(matrix_iterate(C,R,D,NxtC,NxtR)
 	 -> inverse_iterate_(NxtR,NxtC,D,IDet,AList,Inv)
 	 ;  true
@@ -581,9 +594,6 @@ sub_array_(D,D,A,Sub) :- !,
 sub_array_(R,_,A,Sub) :-
 	R1 is R+1,
 	Sub is A[0:R]\\A[R1:_].
-
-zero_div_chk(N,D,R)      :- D=\=0, !, R is N/D.
-zero_div_chk(_,_,1.0Inf) :- current_prolog_flag(float_zero_div,infinity).
 
 %
 % helpers for iterating through nested array levels
@@ -612,13 +622,52 @@ apply_subarrays(N,Op,Ds,V,F,VR) :-
 acc_subarray(N,Op,Ds,V,Acc,R) :-
 	(N>0
 	 ->	I is N-1,
-		(number(V) -> Vi=V ; []([I],V,Vi)),  % index_arr(V[I],Vi)),  %  VS is V[I]),        % simple "broadcast" 
+		(number(V) -> Vi=V ; []([I],V,Vi)),        % simple "broadcst" 
 		SubOp =.. [Op,Ds,Vi,Acc,AccR], SubOp,      % SubOp(Ds,VS1,VS2,VSR)
 		acc_subarray(I,Op,Ds,V,AccR,R)
 	 ;	R=Acc
+	).
+
+%
+% arithmetic --> clpBNR constraint
+%
+constrain(error(instantiation_error,_), Goal) :-
+	current_module(clpBNR),            % clpBNR constraints available?
+	Mod=clpBNR, Mod:constrain_(Goal),  % can't use module name directly as it invalidates current_module test
+	!.
+constrain(Err, _Goal) :-
+	throw(Err).
+
+%
+% Compiled arithmetic 
+%
+:-  (current_prolog_flag(optimise, Opt),
+	 nb_setval('type_ndarryCLP:optflag',Opt),  % save current value to restore later
+	 set_prolog_flag(optimise,true)
+	).
+
+restore_optimise :-  % restore "optimise" flag
+	(nb_current('type_ndarryCLP:optflag', Opt) 
+	 -> (nb_delete('type_ndarryCLP:optflag'), set_prolog_flag(optimise,Opt))
+	 ; true
 	).
 
 matrix_iterate(C,0,Rows,NxtC,Rows) :- !, C>0,
 	NxtC is C-1.
 matrix_iterate(C,R,_Rows,C,NxtR) :- R>0,
 	NxtR is R-1.	
+
+add(N1,N2,R) :- R is  N1+N2.
+sub(N1,N2,R) :- R is  N1-N2.
+mul(N1,N2,R) :- R is  N1*N2.
+mml(N1,N2,R) :- R is -N1*N2.
+div(N1,N2,R) :- R is  N1/N2.
+pow(N1,N2,R) :- R is  N1**N2.
+max(N1,N2,R) :- R is  max(N1,N2).
+min(N1,N2,R) :- R is  min(N1,N2).
+mul3(N1,N2,N3,R) :- R is N1*N2*N3.
+inv(N,R)     :- N=\=0, R is 1/N.
+det2x2(A0_0,A0_1,A1_0,A1_1,R) :- R is A0_0*A1_1 - A0_1*A1_0.
+acc_det(Acc,El,I1,MDet,NxtA)  :- NxtA is Acc + El*I1*MDet.
+
+:- restore_optimise.
