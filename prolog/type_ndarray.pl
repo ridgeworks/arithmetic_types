@@ -446,9 +446,9 @@ cross_(A1,A2,AR) :-                   % cross product of two 3D vectors
 	vector3d(A1, A1_0,A1_1,A1_2),
 	vector3d(A2, A2_0,A2_1,A2_2),
 	vector3d(AR, AR_0,AR_1,AR_2),
-	catch(det2x2(A1_1,A1_2,A2_1,A2_2,AR_0), Err, constrain(Err, AR_0 is A1_1*A2_2 - A2_1*A1_2)),
-	catch(det2x2(A2_0,A2_2,A1_0,A1_2,AR_1), Err, constrain(Err, AR_1 is A2_0*A1_2 - A1_0*A2_2)),
-	catch(det2x2(A1_0,A1_1,A2_0,A2_1,AR_2), Err, constrain(Err, AR_2 is A1_0*A2_1 - A2_0*A1_1)).
+	catch(det2x2(A1_1,A1_2,A2_1,A2_2,AR_0), Err0, constrain(Err0, AR_0 is A1_1*A2_2 - A2_1*A1_2)),
+	catch(det2x2(A2_0,A2_2,A1_0,A1_2,AR_1), Err1, constrain(Err1, AR_1 is A2_0*A1_2 - A1_0*A2_2)),
+	catch(det2x2(A1_0,A1_1,A2_0,A2_1,AR_2), Err2, constrain(Err2, AR_2 is A1_0*A2_1 - A2_0*A1_1)).
 
 vector3d(#(N0,N1,N2),N0,N1,N2).
 
@@ -563,10 +563,10 @@ inverse_([2,2],A,Inv) :- !,     % special case 2x2 to avoid vector edge cases in
 	determinant_([2,2],A,ADet),
 	catch(inv(ADet,IDet), Err, constrain(Err, IDet is 1/ADet)),  % fails if det=0
 	A = #( #(A_00,A_01) , #(A_10,A_11) ),
-	catch(mul(A_11,IDet,I_00), Err, constrain(Err,I_00 is  A_11*IDet)),
-	catch(mml(A_01,IDet,I_01), Err, constrain(Err,I_01 is -A_01*IDet)),
-	catch(mml(A_10,IDet,I_10), Err, constrain(Err,I_10 is -A_10*IDet)),
-	catch(mul(A_00,IDet,I_11), Err, constrain(Err,I_11 is  A_00*IDet)),
+	catch(mul(A_11,IDet,I_00), Err00, constrain(Err00,I_00 is  A_11*IDet)),
+	catch(mml(A_01,IDet,I_01), Err01, constrain(Err01,I_01 is -A_01*IDet)),
+	catch(mml(A_10,IDet,I_10), Err10, constrain(Err10,I_10 is -A_10*IDet)),
+	catch(mul(A_00,IDet,I_11), Err11, constrain(Err11,I_11 is  A_00*IDet)),
 	ndarray([[I_00, I_01], [I_10, I_11]],Inv).
 inverse_([N,N],A,Inv) :-
 	determinant_([N,N],A,ADet), 

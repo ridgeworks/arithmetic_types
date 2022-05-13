@@ -130,22 +130,22 @@ test(importedfunction) :-
     3 is atom_length(abc).
     
 %
-% arithmetic_expression_value/2
+% arithmetic_expression_value/2 (Module specific to avoid calling 'arithmetic')
 %    
 test(arith_eval, A == 10) :-
-    arithmetic_expression_value(10,A).
+    arithmetic_types:arithmetic_expression_value(10,A).
 
 test(arith_eval, A == 20) :-
-    arithmetic_expression_value(twice(5)+10,A).
+    arithmetic_types:arithmetic_expression_value(twice(5)+10,A).
 	
 test(arith_eval, A == "ten") :-
-    arithmetic_expression_value("ten",A).
+    arithmetic_types:arithmetic_expression_value("ten",A).
 
 test(arith_eval, A =:= pi) :-
-    arithmetic_expression_value(pi,A).
+    arithmetic_types:arithmetic_expression_value(pi,A).
 
 test(arith_eval, fail) :-
-    arithmetic_expression_value(_,_).
+    arithmetic_types:arithmetic_expression_value(_,_).
 
 
 :- if(current_prolog_flag(bounded, false)). % GMP implies rational
