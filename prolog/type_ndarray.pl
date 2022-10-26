@@ -641,16 +641,7 @@ constrain(Err, _Goal) :-
 %
 % Compiled arithmetic 
 %
-:-  (current_prolog_flag(optimise, Opt),
-	 nb_setval('type_ndarryCLP:optflag',Opt),  % save current value to restore later
-	 set_prolog_flag(optimise,true)
-	).
-
-restore_optimise :-  % restore "optimise" flag
-	(nb_current('type_ndarryCLP:optflag', Opt) 
-	 -> (nb_delete('type_ndarryCLP:optflag'), set_prolog_flag(optimise,Opt))
-	 ; true
-	).
+:- set_prolog_flag(optimise,true).
 
 matrix_iterate(C,0,Rows,NxtC,Rows) :- !, C>0,
 	NxtC is C-1.
@@ -669,5 +660,3 @@ mul3(N1,N2,N3,R) :- R is N1*N2*N3.
 inv(N,R)     :- N=\=0, R is 1/N.
 det2x2(A0_0,A0_1,A1_0,A1_1,R) :- R is A0_0*A1_1 - A0_1*A1_0.
 acc_det(Acc,El,I1,MDet,NxtA)  :- NxtA is Acc + El*I1*MDet.
-
-:- restore_optimise.

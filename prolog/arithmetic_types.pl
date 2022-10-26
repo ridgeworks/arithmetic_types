@@ -135,16 +135,7 @@ term_expansion(eval('$builtin', _), Clauses) :-
 %
 % Compile arithmetic in eval/2 (particularly '$builtin')
 %
-:-  (current_prolog_flag(optimise, Opt),
-	 nb_setval('arithmetic_types:optflag',Opt),  % save current value to restore later
-	 set_prolog_flag(optimise,true)
-	).
-
-restore_optimise :-  % restore "optimise" flag
-	(nb_current('arithmetic_types:optflag', Opt) 
-	 -> (nb_delete('arithmetic_types:optflag'), set_prolog_flag(optimise,Opt))
-	 ; true
-	).
+:- set_prolog_flag(optimise,true).
 
 %!  arithmetic_expression_value(:Expression, -Result) is det.
 %
@@ -176,8 +167,6 @@ eval(Term, Result) :-      % then see if library(arithmetic) works
 	!.
 eval(Term, _Result) :-     % then fail
 	eval_error(Term).
-
-:- restore_optimise.   % end of eval, restore optimise flag
 
 %
 % evaluate user defined function (via inline code or arithmetic_expression_value)
