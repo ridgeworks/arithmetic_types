@@ -237,7 +237,7 @@ do_expand_function(X, Result, Result=X) :-     % #3 lists, move out of expressio
 	!.
 do_expand_function(Function,                   % #4 user defined (before built in for overloading)
 				   Result,
-				   (ArgCode, arithmetic_types:eval_user(Pred,Result))) :-  % Use eval/2 for polymorphic functions
+				   (ArgCode, arithmetic_types:eval(Pred,Result))) :-  % Use eval/2 for polymorphic functions
 	evaluable(Function, _Module),	
 	!,
 	compound_name_arguments(Function, Name, Args),
