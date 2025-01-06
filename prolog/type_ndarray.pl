@@ -50,7 +50,7 @@
 % definition of a N dimensional array
 ndarray(Arr) :- ndarray_(Arr,_).
 
-% for internal use, D is first dimension	
+% for internal use, D is first dimension
 ndarray_(Arr,D) :- (compound(Arr) ; integer(D)), !, 
 	functor(Arr,#,D).
 
@@ -65,10 +65,10 @@ new_ndarray([D|Dn],Arr) :- integer(D), D>0,
 new_fill(L,V,Dn) :-
 	(L>0
 	 ->	I is L-1,
-		new_ndarray(Dn,Vs),
-		[]([I],V,Vs),  %index_arr(V[I],Vs),  % V[I] is Vs[],  %%[]([I],V,Vs),
-		new_fill(I,V,Dn)
-	 ;	true
+	    new_ndarray(Dn,Vs),
+	    []([I],V,Vs),  %index_arr(V[I],Vs),  % V[I] is Vs[],  %%[]([I],V,Vs),
+	    new_fill(I,V,Dn)
+	 ;  true
 	).
 
 % array dimensions (shape)
@@ -84,7 +84,7 @@ map_ndarray(List,Arr) :- compound(Arr), Arr=..[#|Vals], !,
 map_ndarray(List,Arr) :- is_list(List),
 	map_elems_(List,Vals),
 	Arr=..[#|Vals], !.
-	
+
 map_elems_([],[]).
 map_elems_([E|Es],[E|Vs]) :- atomic(E), !,  % optimize
 	map_elems_(Es,Vs).
@@ -97,19 +97,19 @@ map_elems_([E|Es],[V|Vs]) :-
 %
 new(ndarray,Dim,Arr) :- var(Arr), is_list(Dim), !,
 	new_ndarray(Dim,Arr).
-	
+
 %
 % Function: create new array from nested list
 %
 ndarray(List,Arr) :- is_list(List), List \= [],
 	map_ndarray(List,Arr).
-		
+
 %
 % Function: create new array from nested list
 %
 to_list(Arr,List) :- ndarray(Arr),
 	map_ndarray(List,Arr).
-		
+
 %
 % Function: indexing and slicing - basically uses vector indexing and slicing
 %
@@ -121,7 +121,7 @@ to_list(Arr,List) :- ndarray(Arr),
 	ndarray_(R,SLen),
 	sub_term(0,SLen,Start,Arr,R).
 []([Ix],Arr,R) :-                      % indexing evaluates to element
-	ndarray_(Arr,Len),	
+	ndarray_(Arr,Len),
 	index_parameters(Ix,Len,I),
 	AIx is I+1,  % index_parameters are 0 based, arg is 1 based
 	arg(AIx,Arr,R).
@@ -129,10 +129,10 @@ to_list(Arr,List) :- ndarray(Arr),
 sub_term(Ix,Len,Start,From,To) :-
 	(Ix < Len
 	 -> ToIx is Ix+1,
-	 	FromIx is Start+ToIx,
-		arg(FromIx,From,El),
-		arg(ToIx,To,El),
-		sub_term(ToIx,Len,Start,From,To)
+	    FromIx is Start+ToIx,
+	    arg(FromIx,From,El),
+	    arg(ToIx,To,El),
+	    sub_term(ToIx,Len,Start,From,To)
 	 ;  true
 	).
 
@@ -155,7 +155,7 @@ ndim(Arr,N) :-
 size(Arr,Sz) :- 
 	shape(Arr,S),
 	size_(S,1,Sz).
-	
+
 size_([],In,In).
 size_([D|DN],In,Out) :-
 	Nxt is D*In,
@@ -171,14 +171,14 @@ init(Arr,Val,RArr) :-
 
 fill_each(N,Arr,Value) :-
 	(N>0
-	 ->	Ix is N-1,
-	 	[]([Ix],Arr,Item),  %index_arr(Arr[Ix],Item),
-		(ndarray_(Item,D)
-		 -> fill_each(D,Item,Value)
-		 ;	(var(Item) -> Item=Value ; true)
-		),
-		fill_each(Ix,Arr,Value)
-	 ;	true
+	 -> Ix is N-1,
+	    []([Ix],Arr,Item),  %index_arr(Arr[Ix],Item),
+	    (ndarray_(Item,D)
+	     -> fill_each(D,Item,Value)
+	     ;  (var(Item) -> Item=Value ; true)
+	    ),
+	    fill_each(Ix,Arr,Value)
+	 ;  true
 	).
 
 %
@@ -193,31 +193,39 @@ fill_each(N,Arr,Value) :-
 	new_ndarray([RR|S],AR),
 	AR[0:R1] is A1[],
 	AR[R1:_] is A2[].
-	
+
 %
-% Function: transpose (1D=noop, 2D=matrix transpose, 3+D=2D matrix of array)
+% Function: transpose
 %
 transpose(Arr,TArr)	:- 
 	shape(Arr,S),
-	transpose_(S,Arr,TArr).
+	(length(S,1)
+	 -> TArr = Arr               % 1D case, numpy semantics (T.shape = reverse(A.shape)
+	 ;  bagof((Path,Element),Element^arr_elements(S,Arr,Path/Path,Element),AllEl),  % collect all (Path,Value) in Arr
+	    lists:reverse(S,TS),                                 % transposed shape is reverse
+	    (shape(TArr,TS) -> true ; TArr is new(ndarray,TS)),  % target for transposed 
+	    transpose_elements(AllEl,TArr)                       % copy values to transposed
+	).
 
-transpose_([C],Arr,TArr) :- !,       % 1D case result will be Cx1 array
-	transpose1_([1,C],#(Arr),TArr).
-transpose_([R,1|S],Arr,TArr) :- !,     % result will be a 1xR vector
-	transpose1_([R,1|S],Arr,#(TArr)).
-transpose_(Shp,Arr,TArr) :-          % general 2D case
-	transpose1_(Shp,Arr,TArr).
+% backtracking generator of (Path,Value) pairs, collected with findall
+arr_elements([],Element,_Path/[],Element).
+arr_elements([S|Shp],Arr,Path/[Ix|Nxt],Element) :-
+	MaxI is S-1,
+	between(0,MaxI,Ix),          % actual generator
+	[]([Ix],Arr,SubArr),
+	arr_elements(Shp,SubArr,Path/Nxt,Element).
+
+% update transposed using list of (Path,Value) pairs
+transpose_elements([],_TArr).
+transpose_elements([(Path,Val)|Els],TArr) :-
+	to_array(Path,TArr,Val),     % uses reverse path to update transposed
+	transpose_elements(Els,TArr).
 	
-transpose1_([R,C|S],Arr,TArr) :-
-	new_ndarray([C,R|S],TArr),
-	RIx is R-1,
-	CIx is C-1,
-	transpose_mtrx(CIx,RIx,RIx,Arr,TArr).
-
-transpose_mtrx(C,R,Rows,Arr,TArr) :-
-	V is Arr[R,C],
-	V is TArr[C,R],
-	(matrix_iterate(C,R,Rows,NxtC,NxtR) -> transpose_mtrx(NxtC,NxtR,Rows,Arr,TArr) ; true).
+to_array([P],TArr,Val) :- !, 
+	[]([P],TArr,Val).            % the end, start here
+to_array([P|Path],TArr,Val) :-
+	to_array(Path,TArr,SubArr),  % work backwards from the end
+	[]([P],SubArr,Val).
 
 % Arithmetic functions on arrays, assumed to be numbers
 %
@@ -234,7 +242,7 @@ arange(ndarray,B,E,Arr) :- number(B), number(E),
 arange(ndarray,B,E,S,Arr) :- number(B), number(E), number(S),
 	Vs is arange(list,B,E,S),
 	ndarray(Vs,Arr).
-	
+
 %
 % Function: NxN identity matrix 
 %
@@ -244,13 +252,12 @@ identity(ndarray,N,IdArr) :-  integer(N), N>1,
 	Ix is N-1,
 	diagonal_(Ix,IdArr),   % fill diagonal
 	fill_each(N,IdArr,0).  % fill rest with 0
-	
 
 diagonal_(N,Arr) :-
 	(N>=0
-	 ->	Arr[N,N] is 1,
-		Nxt is N-1,
-		diagonal_(Nxt,Arr)
+	 -> Arr[N,N] is 1,
+	    Nxt is N-1,
+	    diagonal_(Nxt,Arr)
 	 ;  true
 	).
 
@@ -260,7 +267,7 @@ diagonal_(N,Arr) :-
 sum(A,ASum) :- ndarray(A), !,
 	ndarray_dim(Shp,A),
 	sum_array(Shp,A,0,ASum).
-	
+
 sum_array([],N,Acc,R) :-
 	catch(add(Acc,N,R),Err, constrain(Err,R is Acc+N)).  % final dimension, use accumulate number
 sum_array([D|Ds],A,Acc,R) :-
@@ -272,7 +279,7 @@ sum_array([D|Ds],A,Acc,R) :-
 min(A,AMin) :- ndarray(A), !,
 	ndarray_dim(Shp,A),
 	min_array(Shp,A,inf,AMin).
-	
+
 min_array([],N,Acc,R) :-
 	catch(min(Acc,N,R), Err, constrain(Err,R is min(Acc,N))).  % final dimension, use min
 min_array([D|Ds],A,Acc,R) :-
@@ -336,7 +343,7 @@ add_arrays([D|Ds],A1,A2,AR) :-
 	ndarray_dim(Shp,A1), ndarray_dim(Shp,A2),  % arrays have same shape
 	new_ndarray(Shp,AR),
 	sub_arrays(Shp,A1,A2,AR).
-	
+
 sub_arrays([],N1,N2,R) :- !,
 	catch(sub(N1,N2,R), Err, constrain(Err, R is N1 - N2)).  % final dimension, use numeric subtraction
 sub_arrays([D|Ds],A1,A2,AR) :-
@@ -359,7 +366,7 @@ sub_arrays([D|Ds],A1,A2,AR) :-
 	ndarray_dim(Shp,A1), ndarray_dim(Shp,A2),  % arrays have same shape
 	new_ndarray(Shp,AR),
 	mul_arrays(Shp,A1,A2,AR).
-	
+
 mul_arrays([],N1,N2,R) :- !,
 	catch(mul(N1,N2,R), Err, constrain(Err, R is N1 * N2)).  % final dimension, use numeric multiplication
 mul_arrays([D|Ds],A1,A2,AR) :-
@@ -382,7 +389,7 @@ mul_arrays([D|Ds],A1,A2,AR) :-
 	ndarray_dim(Shp,A1), ndarray_dim(Shp,A2),  % arrays have same shape
 	new_ndarray(Shp,AR),
 	div_arrays(Shp,A1,A2,AR).
-	
+
 div_arrays([],N1,N2,R) :- !,
 	catch(div(N1,N2,R), Err, constrain(Err, R is N1 / N2)).  % final dimension, use numeric division
 div_arrays([D|Ds],A1,A2,AR) :-
@@ -405,14 +412,14 @@ div_arrays([D|Ds],A1,A2,AR) :-
 	ndarray_dim(Shp,A1), ndarray_dim(Shp,A2),  % arrays have same shape
 	new_ndarray(Shp,AR),
 	pow_arrays(Shp,A1,A2,AR).
-	
+
 pow_arrays([],N1,N2,R) :- !,
 	catch(pow(N1,N2,R), Err, constrain(Err, R is N1 ** N2)).  % final dimension, use numeric power
 pow_arrays([D|Ds],A1,A2,AR) :-
 	do_subarrays(D,pow_arrays,Ds,A1,A2,AR).
-	
+
 %
-% Function: apply arithmetic function	
+% Function: apply arithmetic function
 %
 apply(F,A,AR) :- ndarray(A),
 	ndarray_dim(Shp,A),
@@ -438,7 +445,7 @@ cross(A1,A2,R) :- ndarray(A1), ndarray(A2),
 	new_ndarray([3],D3A1), new_ndarray([3],D3A2),
 	D3A1[0:2] is A1[], D3A1[2] is 0,  % copy with Z axis = 0
 	D3A2[0:2] is A2[], D3A2[2] is 0,
-	new_ndarray([3],AR),	
+	new_ndarray([3],AR),
 	cross_(D3A1,D3A2,AR),
 	vector3d(AR,_,_,R).               % result is Z (a scaler, X and Y are 0)
 
@@ -453,7 +460,7 @@ cross_(A1,A2,AR) :-                   % cross product of two 3D vectors
 vector3d(#(N0,N1,N2),N0,N1,N2).
 
 %
-% Function: inner product of two vectors of same size	
+% Function: inner product of two vectors of same size
 %
 inner(A1,A2,R) :- ndarray(A1), ndarray(A2),
 	ndim(A1,1), ndim(A2,1),  % vectors only
@@ -477,30 +484,29 @@ outer_(Ix,A1,A2,AR) :- Ix >= 0,
 	(Nxt >= 0 -> outer_(Nxt,A1,A2,AR) ; true).
 
 %
-% Function: dot product of two arrays	
+% Function: dot product of two arrays
 %
 dot(A1,A2,AR) :- ndarray(A1), ndarray(A2),
 	ndarray_dim(S1,A1),  % vector of same size S
 	ndarray_dim(S2,A2),
 	dot_(S1,S2,A1,A2,AR).
-	
+
 dot_([D], [D], A1, A2, AR) :-  !,        % vectors of same size, take inner product
 	inner(A1,A2,AR).
 dot_([D], [D,P], A1, A2, AR) :-  !,      % vector (A1), convert to matrix 
 	dot_([1,D],[D,P],#(A1),A2,AR).
-dot_([M,N], [N,P] , A1, A2, AR) :-  % matrix multiply
+dot_([M,N], [N,P] , A1, A2, AR) :-       % matrix multiply
 	new_ndarray([M,P],AR),
 	transpose(A2,TA2),   % shape(TA2)  = [P,N]
-	(P = 1 -> TTA2 = #(TA2) ; TTA2 = TA2),  % if vector(A2), convert to matrix for inner
 	MIx is M-1, PIx is P-1,
-	matrix_mul(MIx,PIx,PIx,A1,TTA2,AR).
+	matrix_mul(MIx,PIx,PIx,A1,TA2,AR).
 
 matrix_mul(M,P,Rows,A1,A2,AR) :-
 	AR[M,P] is inner(A1[M],A2[P]),
 	(matrix_iterate(M,P,Rows,NxtM,NxtP) -> matrix_mul(NxtM,NxtP,Rows,A1,A2,AR) ; true).
 
 %
-% Function: determinant of a square matrix	
+% Function: determinant of a square matrix
 %
 determinant(A,Det) :- ndarray(A),
 	ndarray_dim(S,A),
@@ -515,7 +521,7 @@ determinant_([N,N],A,Det) :-
 	map_ndarray([Row|Rest],A),  % convert to list form, use top row
 	MN is N-1,                  % minor dimension
 	determinant_(0,N,MN,Row,Rest,0,Det).
-	
+
 determinant_(I,N,MN,Row,Rest,Acc,Det) :-
 	(I<N
 	 ->	El is Row[I],
@@ -542,19 +548,19 @@ minor([],_I,[]).
 minor([X|Xs],I,[M|Ms]) :-
 	delete_item(I,X,M),
 	minor(Xs,I,Ms).
-	
+
 delete_item(0,[_|Xs],Xs) :- !.
 delete_item(I,[X|Xs],[X|Ms]) :-
 	Nxt is I-1,	
 	delete_item(Nxt,Xs,Ms).
 
 %
-% Function: inverse of a square matrix	
+% Function: inverse of a square matrix
 %
 inverse(A,Inv) :- ndarray(A),
 	ndarray_dim(S,A),
 	inverse_(S,A,Inv).
-	
+
 inverse_([1],A,Inv) :- !,
 	A0 is A[0],
 	catch(inv(A0,IN), Err, constrain(Err, IN is 1/A0)),  % fails if det=0
@@ -575,7 +581,7 @@ inverse_([N,N],A,Inv) :-
 	map_ndarray(AList,A),       % use list form for minor/3
 	D is N-1,  % for indexing
 	inverse_iterate_(D,D,D,IDet,AList,Inv).
-	
+
 inverse_iterate_(R,C,D,IDet,AList,Inv) :-
 	sub_array_(R,D,AList,Sub),
 	minor_determinant_(Sub,C,D,SDet),
@@ -586,7 +592,7 @@ inverse_iterate_(R,C,D,IDet,AList,Inv) :-
 	 -> inverse_iterate_(NxtR,NxtC,D,IDet,AList,Inv)
 	 ;  true
 	).
-	
+
 sub_array_(0,_,A,Sub) :- !,
 	Sub is A[1:_].
 sub_array_(D,D,A,Sub) :- !,
@@ -639,14 +645,14 @@ constrain(Err, _Goal) :-
 	throw(Err).
 
 %
-% Compiled arithmetic 
+% Compiled arithmetic (Note: adding/subtracting a constant already optimal)
 %
 :- set_prolog_flag(optimise,true).
 
 matrix_iterate(C,0,Rows,NxtC,Rows) :- !, C>0,
 	NxtC is C-1.
 matrix_iterate(C,R,_Rows,C,NxtR) :- R>0,
-	NxtR is R-1.	
+	NxtR is R-1.
 
 add(N1,N2,R) :- R is  N1+N2.
 sub(N1,N2,R) :- R is  N1-N2.

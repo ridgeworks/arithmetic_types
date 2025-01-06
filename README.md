@@ -302,17 +302,17 @@ find(Sub,S,R) :- stringy(Sub), stringy(S),   % arguments must be stringy
 Note that exported predicates `index_parameters/3` and `slice_parameters/4` from `type_list` are used, so slicing and indexing semantics will be equivalent. Similarly, both `type_list` and `type_stringy` will define a module specific `\\ /3` predciate for concatenation. 
 
 #### `type_ndarray`
-Polymorphic functions, those which have different implementations depending on argument type, can be very useful. Another example of a sequence type is `ndarray`, also included in this pack, which provides a subset of Python's `ndarray` class (see <numpy.org>). See the source for details, but a few examples:
+Polymorphic functions, those which have different implementations depending on argument type, can be very useful. Another example of a sequence type is `ndarray`, also included in this pack, which provides a subset of Python's `ndarray` class (see [**NumPy**](https://numpy.org/doc/stable/reference/arrays.ndarray.html)). See the source for details, but a few examples:
 ```
 ?- A is ndarray([[1,2,3],[4,5,6]]).
 A = #(#(1, 2, 3), #(4, 5, 6)).
 
 ?- A is new(ndarray,[3,3]), A[0,1] is 42, X is A[0:1][0][0:3-1][1].
-A = #(#(_11938, 42, _11942), #(_11916, _11918, _11920), #(_11894, _11896, _11898)),
+A = #(#(_, 42, _), #(_, _, _), #(_, _, _)),
 X = 42.
 
 ?- T is transpose(ndarray([[[1, 2], [5, 6]], [[3, 4], [7, 8]]])).
-T = #(#(#(1, 2), #(3, 4)), #(#(5, 6), #(7, 8))).
+T = #(#(#(1, 3), #(5, 7)), #(#(2, 4), #(6, 8))).
 
 ?- S is sum(ndarray([1,2,3])).
 S = 6.
@@ -326,6 +326,8 @@ A = #(#(3, 0, 2), #(2, 0, -2), #(0, 1, 1)),
 I = #(#(1r5, 1r5, 0), #(-1r5, 3r10, 1), #(1r5, -3r10, 0)),
 X = #(#(1, 0, 0), #(0, 1, 0), #(0, 0, 1)).
 ```
+Note: To adhere to **NumPy** semantics, the implmentation of the `transpose` function was changed in version 0.1.0 version of this pack.
+
 A somewhat more compelling example is to use `ndarray` to solve a system of linear equations.If the equation system is expressed in the matrix form **`A`**`• x = b`, the entire solution set can also be expressed in matrix form. If the matrix **`A`** is square (has m rows and n=m columns) and has full rank (all m rows are independent), then the system has a unique solution given by `x = `**`A`**<sup>`-1`</sup>`•b`.
 
 For the set of equations:
@@ -367,14 +369,14 @@ Y = "ab".
 ```
 A flag to control the tradeoff between consistency and backwards compatibility is under consideration.
 
-As with `library(arithmetic)`, goal expansion is done at load time and does not support dynamically created functions, e.g., `X0 = [1,2,3][0], Y = is X0+1.` In such cases, explicit calls to `arithmetic_expression_value/2` is required:
+As with `library(arithmetic)`, goal expansion is done at load time and does not support dynamically created functions, e.g., `X0 = [1,2,3][0], Y = is X0+1.` In such cases, arithmetic function `eval` can be used:
 ```
 ?- X0 = [1,2,3][0], Y is X0+1.
 ERROR: Type error: `[]' expected, found `[1,2,3]' (a list) ("x" must hold one character)
 ERROR: In:
 ERROR:   [11] _1296 is [](...,...)+1
 
-?- X0 = [1,2,3][0], arithmetic_expression_value(X0+1,Y).  
+?- X0 = [1,2,3][0], Y is eval(X0+1).
 X0 = [1, 2, 3][0],
 Y = 2.
 ```
@@ -397,10 +399,17 @@ true.
 ```
 Once the pack has been installed, any of the provided type modules can be loaded using `use_module`.
 
-As a general principle, generating errors is avoided but diagnostic messages indicating possible problems are output when `debug` mode is enabled:
+As a general principle, generating errors is avoided but diagnostic messages indicating possible problems are output when `debug(arithmetic_types)` is enabled:
 ```
-﻿[debug]  ?- N=1, D=0, Q is [inf, N/D][D=\=0].
-% arithmetic_types: failed to evaluate 0=\=0 .
+?- N=1, D=0, Q is [inf, N/D][D=\=0].
 false.
+
+﻿?- debug(arithmetic_types).
+ true.
+ 
+?- N=1, D=0, Q is [inf, N/D][D=\=0].
+ % arithmetic_types: failed to evaluate 0=\=0 .
+ % arithmetic_types: failed to evaluate [inf,1/0][0=\=0] .
+ false.
 ```
 

@@ -58,7 +58,7 @@ are the set of globally visible functions they define. Functions can be
 than one type; in such cases they are distinguished by the argument types.
 
 This module extends the functionality of library(arithmetic) and exports
-the same predicate set. Conficts are largely avoided since arithmetic type
+the same predicate set. Conflicts are largely avoided since arithmetic type
 expansion is done  before library(arithmetic) expansion is invoked.
 
 Functions are defined using the directive  arithmetic_function/1. Runtime
@@ -133,6 +133,13 @@ term_expansion(eval('$builtin', _), Clauses) :-
 	findall(Clause, eval_clause(Clause), Clauses).
 
 %
+% evaluation error - if debug(arithmetic_types), print warning, always fail
+%
+eval_error(Term) :-
+	debug(arithmetic_types,'arithmetic_types: failed to evaluate ~w .',[Term]),
+	fail.
+
+%
 % Compile arithmetic in eval/2 (particularly '$builtin')
 %
 :- set_prolog_flag(optimise,true).
@@ -175,17 +182,6 @@ eval_user(Function, Result) :-
 	evaluable(Function, Module),    % non-deterministic due to possible polymorphism
 	call(Module:Function, Result),
 	!.  % commit to successful choice
-	
-%
-% evaluation error - if debug, print warning, always fail
-%
-eval_error(Term) :-
-	current_prolog_flag(debug, true),  % if false, silent fail
-	print_message(debug(arithmetic_types), arithmetic_types(Term)),
-	fail.
-
-prolog:message(arithmetic_types(Term)) -->
-	['arithmetic_types: failed to evaluate ~w .'-[Term] ].
 
 				 /*******************************
 				 *         COMPILE-TIME         *
@@ -224,47 +220,53 @@ expand_function(Expression, NativeExpression, Goal) :-
 	do_expand_function(Expression, NativeExpression, Goal0),
 	tidy(Goal0, Goal).
 
-do_expand_function(X, X, true) :-              % #1 anything evaluable
+do_expand_function(X, X, true) :-              % #0 a var, defer
+	var(X),
+	!.
+do_expand_function(eval(X),                    % #1 eval(Exp), defer using arithmetic_types
+	               Result,
+	               (ArgCode, arithmetic_types:eval(Pred,Result))) :-
+	!,
+	do_expand_function(X,Pred,ArgCode).	 
+do_expand_function(X, X, true) :-              % #2 anything evaluable
 	evaluable(X),
 	!.
-do_expand_function(roundtoward(Expr0, Round),  % #2 roundtoward special case
-				   roundtoward(Expr, Round),
-				   ArgCode) :-
+do_expand_function(roundtoward(Expr0, Round),  % #3 roundtoward special case
+	               roundtoward(Expr, Round),
+	               ArgCode) :-
 	!,
 	do_expand_function(Expr0, Expr, ArgCode).
-do_expand_function(X, Result, Result=X) :-     % #3 lists, move out of expression
+do_expand_function(X, Result, Result=X) :-     % #4 lists, move out of expression
 	is_list(X),
 	!.
-do_expand_function(Function,                   % #4 user defined (before built in for overloading)
-				   Result,
-				   (ArgCode, arithmetic_types:eval(Pred,Result))) :-  % Use eval/2 for polymorphic functions
-	evaluable(Function, _Module),	
+do_expand_function(Function,                   % #5 user defined (before built in for overloading)
+	               Result,
+	               (ArgCode, arithmetic_types:eval(Pred,Result))) :-  % Use eval/2 for polymorphic functions
+	evaluable(Function, _Module),
 	!,
 	compound_name_arguments(Function, Name, Args),
 	expand_predicate_arguments(Args, PredArgs, ArgCode),
 	Pred =.. [Name|PredArgs].
-do_expand_function(Function,                   % #5  builtin (before atomic for family of pi)
-				   Result,
-				   ArgCode) :-
+do_expand_function(Function,                   % #6  builtin (before atomic for family of pi)
+	               Result,
+	               ArgCode) :-
 	callable(Function),  % guard before
 	current_arithmetic_function(Function),
 	!,
 	Function =.. [Name|Args],
 	expand_function_arguments(Args, ArgResults, ArgCode),
 	Result =.. [Name|ArgResults].
-do_expand_function(Name,                       % #6 atom, possible user defined arity 0
-				   Result,
-				   arithmetic_types:eval_user(Pred,Result)) :-
+do_expand_function(Name,                       % #7 atom, possible user defined arity 0
+	               Result,
+	               arithmetic_types:eval_user(Pred,Result)) :-
 	atom(Name),
 	compound_name_arguments(Pred, Name, []),
 	evaluable(Pred, _Module),
 	!.    
-do_expand_function(X, Result, Result=X) :-     % #7 atomic literals, move out of expression
-	atomic(X),
-	!.
-do_expand_function(_Function, _, _) :-         % #8 fail expansion (defaults to 'arithmetic')
-	fail.  % type_error(evaluable, Function).
-
+do_expand_function(X, Result, Result=X) :-     % #8 atomic literals, move out of expression
+	atomic(X).
+%do_expand_function(_Function, _, _) :-        % #9 fail expansion (defaults to 'arithmetic')
+%	fail.  % type_error(evaluable, Function).
 
 expand_function_arguments([], [], true).
 expand_function_arguments([H0|T0], [H|T], (A,B)) :-
@@ -275,10 +277,10 @@ expand_predicate_arguments([], [], true).
 expand_predicate_arguments([H0|T0], [H|T], (A,B)) :-
 	do_expand_function(H0, H1, A0),
 	(   callable(H1),
-		current_arithmetic_function(H1)
+	    current_arithmetic_function(H1)
 	->  A = (A0, H is H1)
 	 ;  (A0 = (X=R) -> X=R, A=true ; A = A0),  % optimization for atomics
-		H = H1
+	    H = H1
 	),
 	expand_predicate_arguments(T0, T, B).
 
@@ -287,12 +289,9 @@ expand_predicate_arguments([H0|T0], [H|T], (A,B)) :-
 %   True if F and all its subterms are variables or evaluable terms by builtin functions.
 %
 evaluable(F) :-
-	var(F),
-	!.
-evaluable(F) :-
 	number(F),
 	!.
-evaluable([Code]) :- 
+evaluable([Code|Tail]) :- Tail == [],  % single Code item
 	% assumes possibility of future environment flag to disable
 	(current_prolog_flag(disable_codeTBD,true) -> fail ; eval_code(Code)),
 	!.

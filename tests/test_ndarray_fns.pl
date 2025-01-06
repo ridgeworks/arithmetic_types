@@ -57,16 +57,25 @@ test(concatndarray,L==[[1, 2], [3, 4]]) :-
 test(concatndarray,L==[[1, 2], [11, 12], [3, 4], [13, 14]]) :-
 	L is to_list(ndarray([[1,2],[11,12]]) \\ ndarray([[3,4],[13,14]])).
 
+test(transposendarray, T==[1,2,3]) :- 
+	T is to_list(transpose(ndarray([1,2,3]))).
+	
+test(transposendarray, T==[[1,2,3]]) :- 
+	T is to_list(transpose(ndarray([[1],[2],[3]]))).
+	
 test(transposendarray, T==[[1,3],[2,4]]) :- 
 	T is to_list(transpose(ndarray([[1,2],[3,4]]))).
 	
-test(transposendarray, L==[[1],[2],[3]]) :- 
+test(transposendarray, T==[[[0, 4, 8],[2, 6, 10]],[[1, 5, 9],[3, 7, 11]]]) :- 
+	T is to_list(transpose(ndarray([[[0,1],[2,3]],[[4,5],[6,7]],[[8,9],[10,11]]]))).
+	
+test(transposendarray, L==L0) :- 
 	L0 = [1,2,3],
 	T0 is transpose(ndarray(L0)),
 	L0 is to_list(transpose(T0)),
 	L is to_list(T0).
 	
-test(transposendarray, L==[[[1, 2], [5, 6]], [[3, 4], [7, 8]]]) :- 
+test(transposendarray, L==[[[1, 5], [3, 7]], [[2, 6], [4, 8]]]) :- 
 	L0 is [[[1,2],[3,4]],[[5,6],[7,8]]],
 	T0 is transpose(ndarray(L0)),
 	L0 is to_list(transpose(T0)),
