@@ -34,35 +34,27 @@
 */
 
 :- module(arithmetic_types,
-		  [ arithmetic_function/1,              % +Name/Arity
-			arithmetic_expression_value/2       % Expression, -Value
-		  ]).
+	      [ arithmetic_function/1,              % +Name/Arity
+	        arithmetic_expression_value/2       % Expression, -Value
+	      ]).
 :- autoload(library(error),[type_error/2]).     % for compile/load errors
 
 % the following permits calls to library(arithmetic) of evaluation fails here
 :- use_module(library(arithmetic), 
-		[arithmetic_expression_value/2 as def_arithmetic_expression_value]
-		     ).
-		
+	    [arithmetic_expression_value/2 as def_arithmetic_expression_value]
+	         ).
+
 %:- set_prolog_flag(generate_debug_info, false).
 
 /** <module> Extensible arithmetic types
 
-This module extends the existing library(arithmetic) to support expressions
-with atomic values and user defined types. Such types include compound 
-terms which are not functions. A user defined type is typically packaged 
-as a module with its associated function definitions. These predicates need
-not, and typically do not export the predicates; the exports of such modules
-are the set of globally visible functions they define. Functions can be
-"polymorphic" in that the same function Name/Arity can be defined for more
-than one type; in such cases they are distinguished by the argument types.
+This module extends the existing library(arithmetic) to support expressions with atomic values and user defined types. Such types include compound terms which are not functions. A user defined type is typically packaged as a module with its associated function definitions. These predicates need not, and typically do not export the predicates; the exports of such modules are the set of globally visible functions they define. Functions can be "polymorphic" in that the same function Name/Arity can be defined for more than one type; in such cases they are distinguished by the argument types.
 
-This module extends the functionality of library(arithmetic) and exports
-the same predicate set. Conflicts are largely avoided since arithmetic type
-expansion is done  before library(arithmetic) expansion is invoked.
+This module extends the functionality of library(arithmetic) and exports the same predicate set. Conflicts are largely avoided since arithmetic type expansion is done  before library(arithmetic) expansion is invoked.
 
-Functions are defined using the directive  arithmetic_function/1. Runtime
-evaluation  is provided by arithmetic_expression_value/2.
+Functions are defined using the directive  arithmetic_function/1. When this directive is encountered at load time, the predicate for that function must either be defined and visible to the module or will be defined subsequently in the module being loaded. This permits, for example, an imported predicate to be used as an function given the right argument pattern. Alternatively, it can be overloaded by defining a local predicate prior to using this directive to define the function.
+
+Runtime evaluation  is provided by arithmetic_expression_value/2.
 */
 
 :- multifile evaluable/2.                       % Term, Module
@@ -77,26 +69,20 @@ arithmetic_function(Term) :-
 arith_decl_clauses(NameArity, Clauses) :-
 	pred_indicator(NameArity,Name,Arity)
 	 -> 
-		compound_name_arity(Term, Name, Arity),  %  for possible 0 arity
-		ImplArity is Arity+1,
-		functor(Pred, Name, ImplArity),
-		prolog_load_context(module, M),
-		defining_context(M:Pred,Q),
-		(evaluable(Term, Q)                      % make idempotent
-		 -> Clauses=[]
-		 ;  Clauses=[arithmetic_types:evaluable(Term, Q)]
-		)
+	    compound_name_arity(Term, Name, Arity),  %  for possible 0 arity
+	    ImplArity is Arity+1,
+	    functor(Pred, Name, ImplArity),
+	    prolog_load_context(module, M),
+	    predicate_property(M:Pred,implementation_module(Q)),  % implementation seen from M
+	    (evaluable(Term, Q)                      % make idempotent
+	     -> Clauses=[]
+	     ;  Clauses=[arithmetic_types:evaluable(Term, Q)]
+	    )
 	 ;  type_error(predicate_indicator, NameArity).
 
 pred_indicator(_:NameArity, Name, Arity) :- % for compatibility - throw away any specified module
 	pred_indicator(NameArity, Name, Arity).
 pred_indicator(Name/Arity, Name, Arity). 
-  
-defining_context(Pred,M) :- 
-	predicate_property(Pred,implementation_module(M)), !.  % local to M  
-defining_context(Pred,C) :- 
-	predicate_property(Pred,imported_from(C)), !.          % imported from C          
-defining_context(_,user).                                  % not found, sorted out at evaluation? 
 
 %!  eval_clause(+Term, -Clause) is det.
 %
@@ -107,7 +93,7 @@ eval_clause(roundtoward(_,Round), (eval(Gen,Result) :- Body)) :-
 	!,
 	Gen = roundtoward(Arg,Round),
 	eval_args([Arg], [PlainArg], Goals,
-			  [Result is roundtoward(PlainArg,Round)]),
+	          [Result is roundtoward(PlainArg,Round)]),
 	list_conj(Goals, Body).
 eval_clause(Term, (eval(Gen, Result) :- Body)) :-
 	functor(Term, Name, Arity),

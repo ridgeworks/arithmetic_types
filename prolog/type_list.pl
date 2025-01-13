@@ -5,8 +5,32 @@
 	slice_parameters/4,  % slice support for blocks
 	index_parameters/3   % index support for blocks
 	]).
-	
-:- current_module(arithmetic_types) -> true ; use_module(library(arithmetic_types)).
+
+/** <module> arithmetic type support for lists 
+
+This module implements a set of functions on lists which can be used in standard arithmetic expressions, including block indexing and slicing (using `[]` as a postfix operator), concatenation, flatten, fill from a range, etc. It also exports a couple of predicates to support indexing and slicing on other "sequence" types.
+
+The set of list arithmetic functions defined by this module include:
+```
+:- arithmetic_function(new/2).        % create
+:- arithmetic_function('[|]'/2).      % evaluate list items
+:- arithmetic_function([]/1).         % block index
+:- arithmetic_function([]/2).
+:- arithmetic_function(: /2).         % slice (used with block indexing)
+:- arithmetic_function(length/1).     % size or length
+:- arithmetic_function(init/2).       % fill any vars
+:- arithmetic_function(\\ /2).        % list concat
+:- arithmetic_function(flatten/1).    % flattened list
+:- arithmetic_function(arange/2).     % list from range(N)
+:- arithmetic_function(arange/3).     % list from range(B,E)
+:- arithmetic_function(arange/4).     % list from range(B,E,S)
+```
+
+See the ReadMe for this pack for more documentation and examples.
+*/
+
+:- use_module(library(arithmetic_types)).
+%%:- current_module(arithmetic_types) -> true ; use_module(library(arithmetic_types)).
 
 % Also provides:
 %  1. Generic slice evaluation (used inside block indexing)
@@ -17,9 +41,10 @@
 :- arithmetic_function([]/1).         % block index
 :- arithmetic_function([]/2).
 :- arithmetic_function(: /2).         % slice (used with block indexing)
-:- arithmetic_function(len/1).        % size or length
+%- arithmetic_function(length/1).     % size or length (directive below)
 :- arithmetic_function(init/2).       % fill any vars
 :- arithmetic_function(\\ /2).        % list concat
+%- arithmetic_function(flatten/1).    % flattened list (directive below)
 :- arithmetic_function(arange/2).     % list from range(N)
 :- arithmetic_function(arange/3).     % list from range(B,E)
 :- arithmetic_function(arange/4).     % list from range(B,E,S)
@@ -36,7 +61,7 @@ slice_parameters(B:E,Len,SBegin,SLen) :-
 
 % index parm
 index_parameters(Ix,Len,I) :-
-	item_eval(Ix,EIx),	
+	item_eval(Ix,EIx),
 	integer(EIx),
 	(EIx < 0 -> I is Len+EIx ; I = EIx),
 	I >= 0.
@@ -94,27 +119,31 @@ skip_N(0,In,In):- !.
 skip_N(1,[_|In],In):- !.
 skip_N(N,[_,_|Xs],Out) :-                  % N>0,  % superfluous check
 	N1 is N-2,
-	skip_N(N1,Xs,Out).	
-	
+	skip_N(N1,Xs,Out).
+
 next_N(0,In,[],In) :- !.
 next_N(1,[X|In],[X],In) :- !.
-next_N(N,[X1,X2|In],[X1,X2|Out],Rem) :-	   % N>0,  % superfluous check
+next_N(N,[X1,X2|In],[X1,X2|Out],Rem) :-    % N>0,  % superfluous check
 	N1 is N-2,
-	next_N(N1,In,Out,Rem).	
+	next_N(N1,In,Out,Rem).
 
 %
-% Function: size/length
+% Function: size/length (never called locally, prior calls invoke system:length)
 %
-len(L,N) :- is_list(L),
-	length(L,N).
-	
+:- redefine_system_predicate(length(_,_)). % permits local redefinition for function
+
+length(L,N) :- is_list(L),
+	system:length(L,N).
+
+:- arithmetic_function(length/1).          % size or length
+
 %
-% Function: fill any vars	
+% Function: fill any vars
 %
 init(L, Value, L) :- is_list(L),
 	fill_each(L,Value).
-	
-fill_each([],_).	
+
+fill_each([],_).
 fill_each([X|Xs],Value) :-
 	(is_list(X)
 	 -> fill_each(X,Value)
@@ -123,15 +152,23 @@ fill_each([X|Xs],Value) :-
 	fill_each(Xs,Value).
 
 %
-% Function: append 2 lists	
+% Function: append 2 lists
 %
 \\(L1, L2, R) :-  nonvar(L1), is_list(L2),  % guard against ill-formed lists
 	append_det(L1,L2,R).
 
 append_det([], L, L) :- !.  % deterministic, so !
 append_det([H|T], L, [H|R]) :-
-    append_det(T, L, R).
-    
+	append_det(T, L, R).
+
+%
+% Function: flattened list
+%
+flatten(List,FList) :- is_list(List),
+	lists:flatten(List,FList).
+
+:- arithmetic_function(flatten/1).    % flattened list from local flatten/2
+
 %
 % Function: arange/2,3,4
 %
@@ -145,7 +182,7 @@ arange(list,B,E,L) :- number(B), number(E),
 arange(list,B,E,S,L) :- number(B), number(E), number(S),
 	B>=0, E>B, S>0,
 	arange_(B,E,S,L).
-	
+
 arange_(B,E,_S,[]) :- B>=E, !.
 arange_(B,E,S,[B|Vs]) :- 
 	B1 is B+S,

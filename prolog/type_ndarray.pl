@@ -1,3 +1,25 @@
+/*	The MIT License (MIT)
+ *
+ *	Copyright (c) 2021-25 Rick Workman
+ *
+ *	Permission is hereby granted, free of charge, to any person obtaining a copy
+ *	of this software and associated documentation files (the "Software"), to deal
+ *	in the Software without restriction, including without limitation the rights
+ *	to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ *	copies of the Software, and to permit persons to whom the Software is
+ *	furnished to do so, subject to the following conditions:
+ *
+ *	The above copyright notice and this permission notice shall be included in all
+ *	copies or substantial portions of the Software.
+ *
+ *	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ *	IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ *	FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ *	AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ *	LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ *	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ *	SOFTWARE.
+ */
 :- module(type_ndarray,
 	[ ndarray/1,
 	  op(500, yfx, '.+'),      % arithmetic operators on arrays
@@ -8,11 +30,58 @@
 	  op(200, xfx, '.**')  
 	]).
 
-:- current_module(arithmetic_types) -> true ; use_module(library(arithmetic_types)).
+%:- reexport(library(type_list),[op(_,_,_)]).  % requires fix circa 9.3.19 % for operators
+:- reexport(library(type_list),except([slice_parameters/4,index_parameters/3])).  % for operators
+
+/** <module> arithmetic type `ndarray` (mulitidimensional array)
+
+This module implements arithmetic type (see module `arithmetic_types) `ndarry`, immutable, N-dimensional arrays largely patterned after Pyhon's **NumPy** library. Support from slicing and indexing (0 based) are imported from module `type_list`. A one dimensional array is represented a compound term with functor `#` and arguments being the elements of the array. N-dimensional arrays are supported by allowing arrays as array elements. The elements of the array can be any Prolog term, although a subset of the defined arithmetic functions on `ndarray`'s only succeed if the elements are numbers. (There is one exception described below.)
+ 
+The only exported predicate is the type checking `ndarray/1`. Also exported are a set of array arithmetic operations: `.+, .-, .*,` etc.; refer ot source for a complete list. The set of arithmetic functions defined by this module include:
+```
+:- arithmetic_function(new/2).        % new from shape, uninitialized
+:- arithmetic_function(ndarray/1).    % new from ListOfLists
+:- arithmetic_function(to_list/1).    % list from ndarray
+:- arithmetic_function(ndim/1).       % number of dimensions
+:- arithmetic_function(shape/1).      % shape (a list)
+:- arithmetic_function(size/1).       % number of values
+:- arithmetic_function([]/1).         % block indexing and slicing
+:- arithmetic_function([]/2).
+:- arithmetic_function(init/2).       % initialize any variables
+:- arithmetic_function(\\ /2).        % row concat
+:- arithmetic_function(flatten/1).    % flattened array
+:- arithmetic_function(reshape/2).    % reshaped array
+:- arithmetic_function(transpose/1).  % transpose array
+% numeric functions
+:- arithmetic_function(arange/2).     % new from range
+:- arithmetic_function(arange/3).     % new from range
+:- arithmetic_function(arange/4).     % new from range
+:- arithmetic_function(identity/2).   % new NxN identity array
+:- arithmetic_function(sum/1).        % sum of elements
+:- arithmetic_function(min/1).        % minimum of elements
+:- arithmetic_function(max/1).        % maximum of elements
+:- arithmetic_function('.+'/2).       % numeric array addition
+:- arithmetic_function('.-'/1).       % numeric array unary minus
+:- arithmetic_function('.-'/2).       % numeric array subtraction
+:- arithmetic_function('.*'/2).       % numeric array product
+:- arithmetic_function('./'/2).       % numeric array division
+:- arithmetic_function('.**'/2).      % numeric array power
+:- arithmetic_function(apply/2).      % apply function/1 to array
+:- arithmetic_function(cross/2).      % cross product of two 3D vectors
+:- arithmetic_function(inner/2).      % inner product of two vectors
+:- arithmetic_function(outer/2).      % outer product of two vectors
+:- arithmetic_function(dot/2).        % dot product of two vectors/matrices
+:- arithmetic_function(determinant/1).  % determinant of square matrix
+:- arithmetic_function(inverse/1).    % inverse of square matrix
+```
+
+`type_ndarray` supports the use of constrained numeric values as defined by `library(clpBNR)` If `current_module(clpBNR)` succeeds (i.e., the module has been loaded), instantiation errors from standard functional arithmetic will be interpreted as numeric constraints on the variable(s) in the sub-expression being evaluated. If `clpBNR` is not accessible, the original instantiation error will be propagated.
+ 
+See the ReadMe for this pack for more documentation and examples.
+*/
+:- use_module(library(arithmetic_types)).
 % for indexing and slicing support, arange/n content
-:- current_module(type_list) 
-	-> true 
-	;  reexport(library(type_list)).  % reexport for operators
+:- use_module(library(type_list)).
 
 :- arithmetic_function(new/2).        % new from shape, uninitialized
 :- arithmetic_function(ndarray/1).    % new from ListOfLists
@@ -24,6 +93,8 @@
 :- arithmetic_function([]/2).
 :- arithmetic_function(init/2).       % initialize any variables
 :- arithmetic_function(\\ /2).        % row concat
+%- arithmetic_function(flatten/1).    % flattened array (directive below)
+:- arithmetic_function(reshape/2).    % reshaped array
 :- arithmetic_function(transpose/1).  % transpose array
 % numeric functions
 :- arithmetic_function(arange/2).     % new from range
@@ -47,6 +118,11 @@
 :- arithmetic_function(determinant/1).  % determinant of square matrix
 :- arithmetic_function(inverse/1).    % inverse of square matrix
 
+/** 
+ndarray(?X:array) is semidet
+
+Succeeds if X is an array; otherwise fails.
+*/
 % definition of a N dimensional array
 ndarray(Arr) :- ndarray_(Arr,_).
 
@@ -195,6 +271,44 @@ fill_each(N,Arr,Value) :-
 	AR[R1:_] is A2[].
 
 %
+% Function: flatten
+%
+flatten(Arr,FArr) :-
+	% equivalent to:  size(Arr,S), reshape(Arr,[S],FArr)
+	FList is flatten(to_list(Arr)),               % flattened input as list
+	FArr =.. [#|FList].                           % new array from flat data
+
+:- arithmetic_function(flatten/1).    % flattened array from local flatten/2
+
+%
+% Function: reshape
+%
+reshape(Arr,NShp,NArr) :- 
+	new_ndarray(NShp,NArr),                       % target array of new shape
+	length(NShp,N), length(Ixs,N), init_Ix(Ixs),  % starting indices for copy  
+	FList is flatten(to_list(Arr)),               % flatten input array to list
+	copy_list(Ixs,NShp,FList,[],NArr).            % copy data in list to target
+
+init_Ix([]).
+init_Ix([0|Ix]) :- init_Ix(Ix). 
+
+copy_list([Ix],[D],[Val|Vals],NVals,NArr) :- !,
+	[]([Ix],NArr,Val),
+	NIx is Ix+1,
+	(NIx < D
+	 -> copy_list([NIx],[D],Vals,NVals,NArr)
+	 ;  NVals = Vals
+	).
+copy_list([Ix|Ixs],[D|Ds],Vals,NVals,NArr) :-
+	[]([Ix],NArr,NxtArr),
+	copy_list(Ixs,Ds,Vals,NxtVals,NxtArr),
+	NIx is Ix+1,
+	(NIx < D
+	 -> copy_list([NIx|Ixs],[D|Ds],NxtVals,NVals,NArr)
+	 ; NVals = NxtVals
+	).
+
+%
 % Function: transpose
 %
 transpose(Arr,TArr)	:- 
@@ -207,7 +321,7 @@ transpose(Arr,TArr)	:-
 	    transpose_elements(AllEl,TArr)                       % copy values to transposed
 	).
 
-% backtracking generator of (Path,Value) pairs, collected with findall
+% backtracking generator of (Path,Value) pairs, collected with `bagof`
 arr_elements([],Element,_Path/[],Element).
 arr_elements([S|Shp],Arr,Path/[Ix|Nxt],Element) :-
 	MaxI is S-1,
@@ -232,21 +346,21 @@ to_array([P|Path],TArr,Val) :-
 % Function: arange
 %
 arange(ndarray,N,Arr) :- 
-	Vs is arange(list,N),
-	ndarray(Vs,Arr).
+	Vs is arange(list,N),      % Vs is flat
+	Arr =.. [#|Vs].
 
 arange(ndarray,B,E,Arr) :- number(B), number(E),
-	Vs is arange(list,B,E),
-	ndarray(Vs,Arr).
+	Vs is arange(list,B,E),    % Vs is flat
+	Arr =.. [#|Vs].
 
 arange(ndarray,B,E,S,Arr) :- number(B), number(E), number(S),
-	Vs is arange(list,B,E,S),
-	ndarray(Vs,Arr).
+	Vs is arange(list,B,E,S),  % Vs is flat
+	Arr =.. [#|Vs].
 
 %
 % Function: NxN identity matrix 
 %
-identity(ndarray,1,IdArr) :-  ndarray([1],IdArr).
+identity(ndarray,1,#(1)).
 identity(ndarray,N,IdArr) :-  integer(N), N>1,
 	(var(IdArr) -> new(ndarray,[N,N],IdArr) ; true),
 	Ix is N-1,

@@ -2,13 +2,14 @@
 	  [ test_ndarray_fns/0
 	  ]).
 :- use_module(library(plunit)).
+
 :- if(true).  %:- if(exists_source(library(type_ndarray))).
-%:- use_module(library(type_ndarray)).
-:- current_module(type_ndarray) -> true ; use_module(library(type_ndarray)).
+:- use_module(library(type_ndarray)).
+%%:- current_module(type_ndarray) -> true ; use_module(library(type_ndarray)).
 
 test_ndarray_fns :-
 	run_tests([ ndarray_functions
-		  ]).
+	          ]).
 
 :- begin_tests(ndarray_functions).
 
@@ -57,18 +58,27 @@ test(concatndarray,L==[[1, 2], [3, 4]]) :-
 test(concatndarray,L==[[1, 2], [11, 12], [3, 4], [13, 14]]) :-
 	L is to_list(ndarray([[1,2],[11,12]]) \\ ndarray([[3,4],[13,14]])).
 
+test(flattenndarray, T==[1,2,3,4]) :- 
+	T is to_list(flatten(ndarray([[1,2],[3,4]]))).
+
+test(reshapendarray, T==[1,2,3,4,5,6]) :- 
+	T is to_list(reshape(ndarray([[1,2,3], [4,5,6]]),[6])).
+
+test(reshapendarray, T==[[0, 1, 2], [3, 4, 5]]) :- 
+	T is to_list(reshape(arange(ndarray,6),[2,3])).
+
 test(transposendarray, T==[1,2,3]) :- 
 	T is to_list(transpose(ndarray([1,2,3]))).
-	
+
 test(transposendarray, T==[[1,2,3]]) :- 
 	T is to_list(transpose(ndarray([[1],[2],[3]]))).
 	
 test(transposendarray, T==[[1,3],[2,4]]) :- 
 	T is to_list(transpose(ndarray([[1,2],[3,4]]))).
-	
+
 test(transposendarray, T==[[[0, 4, 8],[2, 6, 10]],[[1, 5, 9],[3, 7, 11]]]) :- 
 	T is to_list(transpose(ndarray([[[0,1],[2,3]],[[4,5],[6,7]],[[8,9],[10,11]]]))).
-	
+
 test(transposendarray, L==L0) :- 
 	L0 = [1,2,3],
 	T0 is transpose(ndarray(L0)),
@@ -80,7 +90,7 @@ test(transposendarray, L==[[[1, 5], [3, 7]], [[2, 6], [4, 8]]]) :-
 	T0 is transpose(ndarray(L0)),
 	L0 is to_list(transpose(T0)),
 	L is to_list(T0).
-	
+
 test(initndarray, L==[42,42,42]) :- 
 	A is init(new(ndarray,[2,3]),42),
 	L is to_list(A[0]),
@@ -258,8 +268,8 @@ test(lineqndarray) :-
 	B is ndarray([[5],[7],[8]]),
 	Vs is dot(inverse(A),B),
 	X =:= -15, Y =:= 8, Z =:= 2.
-	
-	
+
+
 :- end_tests(ndarray_functions).
 
 :- else.

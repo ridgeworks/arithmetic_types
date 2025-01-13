@@ -53,7 +53,7 @@ From a scoping perspective, the second model is also similar to builtin arithmet
 
 Module `arithmetic_types` supports the same `exports` list and core semantics as `arithmetic` (it was derived from a clone), but it performs term and goal expansion before `arithmetic` (context `user` before `system`). Effectively, it overrides `library(arithmetic)` once it is loaded.
 
-Also included in this pack are a few "type modules" described below. These are meant to act as motivating examples; a starter kit rather than a definitive library.
+Also included in this pack are a few "type modules" described below. These are meant to act as motivating examples; a starter kit rather than a definitive library. It includes examples of external predicates (i.e., imported from some module) (e.g., `lists:flatten`) and even system predicates (e.g., `length`) overloaded to implement as arithmetic functions. In these situations, care must be taken to define the intended local predicate as the function.
 
 #### `type_bool`
 As described above, it is recommended  to package groups of functions according to their type. So, for example, a `type_bool` module would define some functions with boolean argument values, e.g., `and`, `or`, and `not`, along with functions that produce boolean values, e.g., comparisons. The interface to such a module might look like:
@@ -84,7 +84,7 @@ Note that the exports list is quite small, just a test predicate for `bool` valu
 %
 % type bool, 0 or 1 (representing false or true)
 %
-bool(B) :- integer(B),  (B=0 ; B=1), !.
+bool(B) :- (B==0 ; B==1), !.
 
 %
 % Function: logical operators
@@ -119,9 +119,10 @@ The interface for a `type_list` module might look like:
 :- arithmetic_function([]/1).         % block index
 :- arithmetic_function([]/2).
 :- arithmetic_function(: /2).         % slice (used with block indexing)
-:- arithmetic_function(len/1).        % size or length
+:- arithmetic_function(length/1).     % size or length
 :- arithmetic_function(init/2).       % fill any vars
 :- arithmetic_function(\\ /2).        % list concat
+:- arithmetic_function(flatten/1).    % flattened list
 :- arithmetic_function(arange/2).     % list from range(0,N)
 :- arithmetic_function(arange/3).     % list from range(B,E)
 :- arithmetic_function(arange/4).     % list from range(B,E,Step)
@@ -234,7 +235,7 @@ true.
 ?- 0 is ("abc">"abd").
 true.
 ```
-Module `type_list` supports a few other functions; see the source for details. Many of predicates in `library(lists)`, e.g., `reverse/2`, `flatten/2`, `max_member/2`, `min_member/2`, `sum_list/2`, etc., could  be easily added as functions.
+Module `type_list` supports a few other functions; see the source for details. Many of predicates in `library(lists)`, e.g., `reverse/2`, `max_member/2`, `min_member/2`, `sum_list/2`, etc., could  be easily added as functions.
 
 #### `type_stringy`
 SWI-Prolog `string`'s are another example of a sequence type, so it seems advantageous to use the same index and slice functions on strings. Furthermore, `string`'s and `atom`'s can almost be treated as equivalent from the perspective of functions applied to them. So here's the interface supported by `type_stringy`:
