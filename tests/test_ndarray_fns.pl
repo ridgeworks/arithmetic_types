@@ -98,10 +98,10 @@ test(initndarray, L==[42,42,42]) :-
 
 test(arangendarray, X==[0]) :- 
 	X is to_list(arange(ndarray,1)),
-	[1,2,3] is to_list(arange(ndarray,1,4)),
-	[10,12,14,16,18] is to_list(arange(ndarray,10,20,2)).
+	[1,2,3,4] is to_list(arange(ndarray,1,4)),
+	[10,12,14,16,18,20] is to_list(arange(ndarray,10,20,2)).
 
-test(idndarray, X==[1]) :- 
+test(idndarray, X==[[1]]) :- 
 	X is to_list(identity(ndarray,1)),
 	[[1, 0], [0, 1]] is to_list(identity(ndarray,2)),
 	\+ X is identity(ndarray,0).
@@ -239,24 +239,26 @@ test(outerndarray, X==[12]) :-
 
 test(dotndarray) :-
 	-30 is dot(ndarray([-6]),ndarray([5])),
-	122 is dot(ndarray([9,2,7]),ndarray([4,8,10])),
+	122 is ndarray([9,2,7]) .@ ndarray([4,8,10]),
+	[5, 11] is to_list(dot(ndarray([[1, 2], [3, 4]]), ndarray([1, 2]))),
+	[7, 10] is to_list(ndarray([1, 2]) .@ ndarray([[1, 2], [3, 4]]) ),
 	[[37, 40], [85, 92]] is to_list(dot(ndarray([[1,2],[3,4]]),ndarray([[11,12],[13,14]]))),
 	[[10, 6, 12], [9, 6, 12], [12, 8, 16]] is to_list(dot(ndarray([[2,2],[0,3],[0,4]]),ndarray([[2,1,2],[3,2,4]]))).
 
 test(detndarray) :-
-	6 is determinant(ndarray([6])),
+	6 is determinant(ndarray([[6]])),
 	-14 is determinant(ndarray([[3,8],[4,6]])),
 	-306 is determinant(ndarray([[6,1,1],[4,-2,5],[2,8,7]])),
 	-26 is determinant(ndarray([[-1,1,4,2],[2,-1,2,5],[1,2,3,4],[3,4,-1,2]])),
 	2480 is determinant(ndarray([[0,6,-2,-1,5],[0,0,0,-9,-7],[0,15,35,0,0],[0,-1,-11,-2,1],[-2,-2,3,0,-2]])).
 	
-test(invndarray, [condition(current_prolog_flag(prefer_rationals, false)),L==[0.125]]) :- 
-	L is to_list(inverse(ndarray([8.0]))),
+test(invndarray, [condition(current_prolog_flag(prefer_rationals, false)),L==[[0.125]] ]) :- 
+	L is to_list(inverse(ndarray([[8.0]]))),
 	A2 is ndarray([[3,2],[4,3]]), I2 is inverse(A2), identity(ndarray,2) is dot(A2,I2),
 	A3 is ndarray([[2,0,0],[0,3,2],[0,4,3]]),I3 is inverse(A3),X3 is dot(A3,I3), X3 is identity(ndarray,3).*1.0.
 
-test(invndarray, [condition(current_prolog_flag(prefer_rationals, true)), L==[1r8]]) :- 
-	L is to_list(inverse(ndarray([8]))),
+test(invndarray, [condition(current_prolog_flag(prefer_rationals, true)), L==[[1r8]]]) :- 
+	L is to_list(inverse(ndarray([[8]]))),
 	A2 is ndarray([[4,7],[2,6]]), I2 is inverse(A2), identity(ndarray,2) is dot(A2,I2),
 	A3 is ndarray([[3,0,2],[2,0,-2],[0,1,1]]), I3 is inverse(A3), X3 is dot(A3,I3), X3 is identity(ndarray,3),
 	A3a is ndarray([[-2,-2,1],[-4,-8,4],[-1,5,0]]),I3a is inverse(A3a), identity(ndarray,3) is dot(A3a,I3a),

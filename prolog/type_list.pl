@@ -36,6 +36,8 @@ See the ReadMe for this pack for more documentation and examples.
 %  1. Generic slice evaluation (used inside block indexing)
 %  2. Generic evaluation of list items
 
+:- set_prolog_flag(unknown,fail).     % disable autoloading of other function predicates
+
 :- arithmetic_function(new/2).        % create
 :- arithmetic_function('[|]'/2).      % evaluate list items
 :- arithmetic_function([]/1).         % block index
@@ -44,7 +46,7 @@ See the ReadMe for this pack for more documentation and examples.
 %- arithmetic_function(length/1).     % size or length (directive below)
 :- arithmetic_function(init/2).       % fill any vars
 :- arithmetic_function(\\ /2).        % list concat
-%- arithmetic_function(flatten/1).    % flattened list (directive below)
+:- arithmetic_function(flatten/1).    % flattened list (directive below)
 :- arithmetic_function(arange/2).     % list from range(N)
 :- arithmetic_function(arange/3).     % list from range(B,E)
 :- arithmetic_function(arange/4).     % list from range(B,E,S)
@@ -173,7 +175,8 @@ flatten(List,FList) :- is_list(List),
 % Function: arange/2,3,4
 %
 arange(list,N,L) :- number(N), N>0,
-	arange_(0,N,1,L).
+	E is N-1,
+	arange_(0,E,1,L).
 
 arange(list,B,E,L) :- number(B), number(E),
 	B>=0, E>B,
@@ -183,7 +186,7 @@ arange(list,B,E,S,L) :- number(B), number(E), number(S),
 	B>=0, E>B, S>0,
 	arange_(B,E,S,L).
 
-arange_(B,E,_S,[]) :- B>=E, !.
+arange_(B,E,_S,[]) :- B>E, !.
 arange_(B,E,S,[B|Vs]) :- 
 	B1 is B+S,
 	arange_(B1,E,S,Vs).

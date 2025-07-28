@@ -27,6 +27,7 @@
 	  op(500, yfx, '.-'),
 	  op(400, yfx, '.*'),
 	  op(400, yfx, './') , 
+	  op(400, yfx, '.@'), 
 	  op(200, xfx, '.**')  
 	]).
 
@@ -35,7 +36,7 @@
 
 /** <module> arithmetic type `ndarray` (mulitidimensional array)
 
-This module implements arithmetic type (see module `arithmetic_types) `ndarry`, immutable, N-dimensional arrays largely patterned after Pyhon's **NumPy** library. Support from slicing and indexing (0 based) are imported from module `type_list`. A one dimensional array is represented a compound term with functor `#` and arguments being the elements of the array. N-dimensional arrays are supported by allowing arrays as array elements. The elements of the array can be any Prolog term, although a subset of the defined arithmetic functions on `ndarray`'s only succeed if the elements are numbers. (There is one exception described below.)
+This module implements arithmetic type (see module `arithmetic_types) `ndarry`, immutable, N-dimensional arrays largely patterned after Python's **NumPy** library. Support from slicing and indexing (0 based) are imported from module `type_list`. A one dimensional array is represented a compound term with functor `#` and arguments being the elements of the array. N-dimensional arrays are supported by allowing arrays as array elements. The elements of the array can be any Prolog term, although a subset of the defined arithmetic functions on `ndarray`'s only succeed if the elements are numbers. (There is one exception described below.)
  
 The only exported predicate is the type checking `ndarray/1`. Also exported are a set of array arithmetic operations: `.+, .-, .*,` etc.; refer ot source for a complete list. The set of arithmetic functions defined by this module include:
 ```
@@ -56,7 +57,7 @@ The only exported predicate is the type checking `ndarray/1`. Also exported are 
 :- arithmetic_function(arange/2).     % new from range
 :- arithmetic_function(arange/3).     % new from range
 :- arithmetic_function(arange/4).     % new from range
-:- arithmetic_function(identity/2).   % new NxN identity array
+:- arithmetic_function(identity/2).   % new NxN identity matrix
 :- arithmetic_function(sum/1).        % sum of elements
 :- arithmetic_function(min/1).        % minimum of elements
 :- arithmetic_function(max/1).        % maximum of elements
@@ -70,6 +71,7 @@ The only exported predicate is the type checking `ndarray/1`. Also exported are 
 :- arithmetic_function(cross/2).      % cross product of two 3D vectors
 :- arithmetic_function(inner/2).      % inner product of two vectors
 :- arithmetic_function(outer/2).      % outer product of two vectors
+:- arithmetic_function('.@'/2).       % dot product of two vectors/matrices
 :- arithmetic_function(dot/2).        % dot product of two vectors/matrices
 :- arithmetic_function(determinant/1).  % determinant of square matrix
 :- arithmetic_function(inverse/1).    % inverse of square matrix
@@ -100,7 +102,7 @@ See the ReadMe for this pack for more documentation and examples.
 :- arithmetic_function(arange/2).     % new from range
 :- arithmetic_function(arange/3).     % new from range
 :- arithmetic_function(arange/4).     % new from range
-:- arithmetic_function(identity/2).   % new NxN identity array
+:- arithmetic_function(identity/2).   % new NxN identity matrix
 :- arithmetic_function(sum/1).        % sum of elements
 :- arithmetic_function(min/1).        % minimum of elements
 :- arithmetic_function(max/1).        % maximum of elements
@@ -114,6 +116,7 @@ See the ReadMe for this pack for more documentation and examples.
 :- arithmetic_function(cross/2).      % cross product of two 3D vectors
 :- arithmetic_function(inner/2).      % inner product of two vectors
 :- arithmetic_function(outer/2).      % outer product of two vectors
+:- arithmetic_function('.@'/2).       % dot product of two vectors/matrices
 :- arithmetic_function(dot/2).        % dot product of two vectors/matrices
 :- arithmetic_function(determinant/1).  % determinant of square matrix
 :- arithmetic_function(inverse/1).    % inverse of square matrix
@@ -315,31 +318,27 @@ transpose(Arr,TArr)	:-
 	shape(Arr,S),
 	(length(S,1)
 	 -> TArr = Arr               % 1D case, numpy semantics (T.shape = reverse(A.shape)
-	 ;  bagof((Path,Element),Element^arr_elements(S,Arr,Path/Path,Element),AllEl),  % collect all (Path,Value) in Arr
-	    lists:reverse(S,TS),                                 % transposed shape is reverse
+	 ;  lists:reverse(S,TS),                                 % transposed shape is reverse
 	    (shape(TArr,TS) -> true ; TArr is new(ndarray,TS)),  % target for transposed 
-	    transpose_elements(AllEl,TArr)                       % copy values to transposed
+	    transpose_elements(0,[],Arr,TArr)                    % copy values to target
 	).
 
-% backtracking generator of (Path,Value) pairs, collected with `bagof`
-arr_elements([],Element,_Path/[],Element).
-arr_elements([S|Shp],Arr,Path/[Ix|Nxt],Element) :-
-	MaxI is S-1,
-	between(0,MaxI,Ix),          % actual generator
-	[]([Ix],Arr,SubArr),
-	arr_elements(Shp,SubArr,Path/Nxt,Element).
+transpose_elements(Ix,Path,Arr,TArr) :-
+	[]([Ix],Arr,Val), !,         % fail if Ix too big
+	NPath = [Ix|Path],           % construct target path in reverse order
+	(ndarray(Val)
+	 -> transpose_elements(0,NPath,Val,TArr)  % copy sub array
+	 ;  set_array_(NPath,TArr,Val)            % copy element
+	),
+	Ix1 is Ix+1,
+	transpose_elements(Ix1,Path,Arr,TArr).
+transpose_elements(_Ix,_,_,_).   % exit when Ix exceeds dimension.
 
-% update transposed using list of (Path,Value) pairs
-transpose_elements([],_TArr).
-transpose_elements([(Path,Val)|Els],TArr) :-
-	to_array(Path,TArr,Val),     % uses reverse path to update transposed
-	transpose_elements(Els,TArr).
-	
-to_array([P],TArr,Val) :- !, 
-	[]([P],TArr,Val).            % the end, start here
-to_array([P|Path],TArr,Val) :-
-	to_array(Path,TArr,SubArr),  % work backwards from the end
-	[]([P],SubArr,Val).
+set_array_([Ix],TArr,Val):- !,
+	[]([Ix],TArr,Val).
+set_array_([Ix|Path],TArr,Val) :-
+	[]([Ix],TArr,SubArr),
+	set_array_(Path,SubArr,Val).
 
 % Arithmetic functions on arrays, assumed to be numbers
 %
@@ -360,8 +359,7 @@ arange(ndarray,B,E,S,Arr) :- number(B), number(E), number(S),
 %
 % Function: NxN identity matrix 
 %
-identity(ndarray,1,#(1)).
-identity(ndarray,N,IdArr) :-  integer(N), N>1,
+identity(ndarray,N,IdArr) :-  integer(N), N>=1,
 	(var(IdArr) -> new(ndarray,[N,N],IdArr) ; true),
 	Ix is N-1,
 	diagonal_(Ix,IdArr),   % fill diagonal
@@ -547,7 +545,7 @@ apply_arrays([D|Ds],A,F,AR) :-
 	apply_subarrays(D,apply_arrays,Ds,A,F,AR).
 
 %
-% Function: cross product of two 3 dimensional vectors	
+% Function: cross product of two 3 dimensional vectors
 %
 cross(A1,A2,AR) :- ndarray(A1), ndarray(A2),
 	ndarray_dim([3],A1), ndarray_dim([3],A2), !,  % two 3D vectors
@@ -600,6 +598,8 @@ outer_(Ix,A1,A2,AR) :- Ix >= 0,
 %
 % Function: dot product of two arrays
 %
+'.@'(A1,A2,AR) :- dot(A1,A2,AR).
+
 dot(A1,A2,AR) :- ndarray(A1), ndarray(A2),
 	ndarray_dim(S1,A1),  % vector of same size S
 	ndarray_dim(S2,A2),
@@ -608,7 +608,11 @@ dot(A1,A2,AR) :- ndarray(A1), ndarray(A2),
 dot_([D], [D], A1, A2, AR) :-  !,        % vectors of same size, take inner product
 	inner(A1,A2,AR).
 dot_([D], [D,P], A1, A2, AR) :-  !,      % vector (A1), convert to matrix 
-	dot_([1,D],[D,P],#(A1),A2,AR).
+	dot_([1,D],[D,P],#(A1),A2,#(AR)).
+dot_([D,P], [P], A1, A2, AR) :-  !,      % vector (A2), convert to matrix 
+	reshape(A2,[P,1],A21),
+	dot_([D,P],[P,1],A1,A21,AR0),
+	reshape(AR0,[P],AR).
 dot_([M,N], [N,P] , A1, A2, AR) :-       % matrix multiply
 	new_ndarray([M,P],AR),
 	transpose(A2,TA2),   % shape(TA2)  = [P,N]
@@ -626,8 +630,8 @@ determinant(A,Det) :- ndarray(A),
 	ndarray_dim(S,A),
 	determinant_(S,A,Det).
 
-determinant_([1],A,Det) :- 
-	[]([0],A,Det).  %index_arr(A[0],Det).
+determinant_([1,1],A, A0) :- 
+	A = #( #(A0) ).
 determinant_([2,2],A,Det) :-
 	A = #( #(A_00,A_01) , #(A_10,A_11) ),
 	catch(det2x2(A_00,A_01,A_10,A_11,Det), Err, constrain(Err, Det is A_00*A_11 - A_01*A_10)).
@@ -675,10 +679,10 @@ inverse(A,Inv) :- ndarray(A),
 	ndarray_dim(S,A),
 	inverse_(S,A,Inv).
 
-inverse_([1],A,Inv) :- !,
-	A0 is A[0],
-	catch(inv(A0,IN), Err, constrain(Err, IN is 1/A0)),  % fails if det=0
-	ndarray([IN],Inv).
+inverse_([1,1],A,Inv) :- !,
+	determinant_([1,1],A,ADet),
+	catch(inv(ADet,IN), Err, constrain(Err, IN is 1/ADet)),  % fails if det=0
+	ndarray([[IN]],Inv).
 inverse_([2,2],A,Inv) :- !,     % special case 2x2 to avoid vector edge cases in NxN
 	determinant_([2,2],A,ADet),
 	catch(inv(ADet,IDet), Err, constrain(Err, IDet is 1/ADet)),  % fails if det=0

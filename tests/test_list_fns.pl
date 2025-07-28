@@ -65,7 +65,7 @@ test(tolist, L == [3,3,3]) :-
 test(flattenlist, T==[1,2,3,4]) :- 
 	T is flatten([[1,2],[3,4]]).
 
-test(arangelist, Li == [10, 12, 14, 16, 18]) :-
+test(arangelist, Li == [10, 12, 14, 16, 18, 20]) :-
 	L is arange(list,3),
 	L is arange(list,0,2),
 	Li is arange(list,10,20,2).

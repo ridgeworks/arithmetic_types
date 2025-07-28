@@ -41,8 +41,8 @@
 
 %:- if(exists_source(library(arithmetic_types))).
 :- if(true).
-%:- use_module(library(arithmetic_types)).
-:- current_module(arithmetic_types) -> true ; use_module(library(arithmetic_types)).
+:- use_module(library(arithmetic_types)).
+%:- current_module(arithmetic_types) -> true ; use_module(library(arithmetic_types)).
 
 %%	test_arithfunc
 %
@@ -163,7 +163,7 @@ test(idiv, Qi == 3) :-
 :- endif.
 
 % overload test
-
+/* forbidden in v2.1
 :- arithmetic_function((/\)/2).
 
 /\(S1,S2,R) :- string(S1), string(S2), !,   % string case
@@ -180,6 +180,7 @@ test(func_overload, X=="0xAA0xF0") :-
 % Note: '/\' left overloaded after test.
 % One way of removing it is by unloading this file. Something like:
 % ?- module_property(plunit_arithmetic_function,file(F)), unload_file(F).
+*/
 
 :- end_tests(arithmetic_function).
 

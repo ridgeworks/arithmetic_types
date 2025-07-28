@@ -1,5 +1,5 @@
-/*  Cloned from arithmetic.pl, Part of SWI-Prolog
-	Modified for user defined arithmetic types by Rick Workman, 2021
+/*  Cloned from arithmetic.pl, Part of SWI-Prolog release
+	Modified for user defined arithmetic types by Rick Workman, 2021-2025
 
 	Author:        Jan Wielemaker
 	E-mail:        J.Wielemaker@vu.nl
@@ -37,9 +37,12 @@
 	      [ arithmetic_function/1,              % +Name/Arity
 	        arithmetic_expression_value/2       % Expression, -Value
 	      ]).
-:- autoload(library(error),[type_error/2]).     % for compile/load errors
+:- autoload(library(error),                     % for compile/load errors
+	      [ type_error/2,
+	        permission_error/2
+	      ]).
 
-% the following permits calls to library(arithmetic) of evaluation fails here
+% the following permits calls to library(arithmetic) if evaluation fails here
 :- use_module(library(arithmetic), 
 	    [arithmetic_expression_value/2 as def_arithmetic_expression_value]
 	         ).
@@ -50,11 +53,11 @@
 
 This module extends the existing library(arithmetic) to support expressions with atomic values and user defined types. Such types include compound terms which are not functions. A user defined type is typically packaged as a module with its associated function definitions. These predicates need not, and typically do not export the predicates; the exports of such modules are the set of globally visible functions they define. Functions can be "polymorphic" in that the same function Name/Arity can be defined for more than one type; in such cases they are distinguished by the argument types.
 
-This module extends the functionality of library(arithmetic) and exports the same predicate set. Conflicts are largely avoided since arithmetic type expansion is done  before library(arithmetic) expansion is invoked.
+Module `arithmetic_types` extends the functionality of `library(arithmetic)` and exports the same predicate set. Conflicts are largely avoided since arithmetic type expansion is done  before `library(arithmetic)` expansion is invoked.
 
-Functions are defined using the directive  arithmetic_function/1. When this directive is encountered at load time, the predicate for that function must either be defined and visible to the module or will be defined subsequently in the module being loaded. This permits, for example, an imported predicate to be used as an function given the right argument pattern. Alternatively, it can be overloaded by defining a local predicate prior to using this directive to define the function.
+Functions are defined using the directive `arithmetic_function/1`. When this directive is encountered at load time, the predicate for that function must either be defined and visible to the module or will be defined subsequently in the module being loaded. This permits, for example, an imported predicate to be used as an function given the right argument pattern. Alternatively, it can be overloaded by defining a local predicate prior to using this directive to define the function. Overloading of existing arithmetic functions will result in an error.
 
-Runtime evaluation  is provided by arithmetic_expression_value/2.
+Runtime evaluation is provided by arithmetic_expression_value/2.
 */
 
 :- multifile evaluable/2.                       % Term, Module
@@ -69,7 +72,11 @@ arithmetic_function(Term) :-
 arith_decl_clauses(NameArity, Clauses) :-
 	pred_indicator(NameArity,Name,Arity)
 	 -> 
-	    compound_name_arity(Term, Name, Arity),  %  for possible 0 arity
+	    compound_name_arity(Term, Name, Arity),  % for possible 0 arity
+	    (current_arithmetic_function(Term)       % error to overload arithmetic
+	     -> permission_error(redefine, arithmetic_function, NameArity)
+	     ;  true
+	    ),
 	    ImplArity is Arity+1,
 	    functor(Pred, Name, ImplArity),
 	    prolog_load_context(module, M),
@@ -176,7 +183,10 @@ eval_user(Function, Result) :-
 math_goal_expansion(A is Expr, Goal) :-
 	expand_function(A, NativeA, PreA),  % new
 	expand_function(Expr, Native, Pre),
-	tidy((PreA, Pre, NativeA is Native), Goal).
+	(Pre == true
+	 -> tidy((PreA, NativeA is Native), Goal)      % Pre==true requires native evaluation
+	 ;  tidy((PreA, Pre, NativeA = Native), Goal)  % Pre==eval(..)), then unify with LHS
+	).
 math_goal_expansion(ExprA =:= ExprB, Goal) :-
 	expand_function(ExprA, NativeA, PreA),
 	expand_function(ExprB, NativeB, PreB),

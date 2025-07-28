@@ -14,7 +14,7 @@ test_string_fns :-
 :- begin_tests(string_functions).
 
 test(f_string) :-
-	abc is string(abc), %S1 == "abc",
+	"abc" is string(abc), %S1 == "abc",
 	"42" is string(42), %S2 == "42",
 	S3 is string(2+2), S3 == "4",
 	S3 is string(string(2+2)),
@@ -30,7 +30,7 @@ test(indexstring) :-  % indexing evaluates to character
 	\+ _ is "123"[-4].
 
 test(slicestring, S2=="23") :-             % also tests sub_list/5
-	'1' is "123"[_:1], %S1 == "1",         % because '1' is "1" evaluates to char code
+	"1" is "123"[_:1], %S1 == "1",         % because '1' is "1" evaluates to char code
 	S2 is "123"[1:3], %S2 == "23",
 	S2 is "123"[0-2:_].
 
